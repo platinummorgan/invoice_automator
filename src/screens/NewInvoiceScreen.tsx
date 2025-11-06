@@ -8,9 +8,15 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Modal,
+  FlatList,
+  Platform,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { invoiceService } from '../services/invoice';
 import { customerService } from '../services/customer';
+import { subscriptionService } from '../services/subscription';
 import { Customer } from '../types';
 
 interface NewInvoiceScreenProps {
@@ -31,9 +37,7 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
   const [newCustomerEmail, setNewCustomerEmail] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
   const [issueDate, setIssueDate] = useState(new Date());
-  const [dueDate, setDueDate] = useState(
-    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-  );
+  const [daysUntilDue, setDaysUntilDue] = useState('30');
   const [taxRate, setTaxRate] = useState('0');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<LineItem[]>([
@@ -41,10 +45,50 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
   ]);
   const [loading, setLoading] = useState(false);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [customDays, setCustomDays] = useState('');
+
+  const calculateDueDate = () => {
+    const days = parseInt(daysUntilDue) || 30;
+    const dueDate = new Date(issueDate);
+    dueDate.setDate(dueDate.getDate() + days);
+    return dueDate;
+  };
 
   useEffect(() => {
     loadCustomers();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // Check subscription limit immediately when screen is accessed
+      const checkSubscriptionLimit = async () => {
+        try {
+          const canCreate = await subscriptionService.canCreateInvoice();
+          if (!canCreate.allowed) {
+            Alert.alert(
+              'Upgrade Required',
+              canCreate.reason || 'You have reached your free tier limit.',
+              [
+                { text: 'Maybe Later', style: 'cancel', onPress: () => navigation.goBack() },
+                {
+                  text: 'Upgrade to Pro',
+                  onPress: () => {
+                    navigation.goBack();
+                    navigation.navigate('Settings');
+                  },
+                },
+              ]
+            );
+          }
+        } catch (error: any) {
+          console.error('Error checking subscription:', error);
+        }
+      };
+
+      checkSubscriptionLimit();
+    }, [navigation])
+  );
 
   const loadCustomers = async () => {
     try {
@@ -96,13 +140,20 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
   };
 
   const formatCurrency = (amount: number) => {
-    return `$${amount.toFixed(2)}`;
+    return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const handleSave = async () => {
     // Validation
     if (!selectedCustomer && !newCustomerName) {
       Alert.alert('Error', 'Please select or add a customer');
+      return;
+    }
+
+    // Require email address
+    const customerEmail = newCustomerEmail || selectedCustomer?.email;
+    if (!customerEmail || customerEmail.trim() === '') {
+      Alert.alert('Error', 'Email address is required for all invoices');
       return;
     }
 
@@ -122,7 +173,7 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
         customer_email: newCustomerEmail || selectedCustomer?.email,
         customer_phone: newCustomerPhone || selectedCustomer?.phone,
         issue_date: issueDate,
-        due_date: dueDate,
+        due_date: calculateDueDate(),
         tax_rate: parseFloat(taxRate) || 0,
         notes,
         items: items.map((item) => ({
@@ -133,6 +184,10 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
       };
 
       await invoiceService.createInvoice(formData);
+      
+      // Increment invoice count for free users
+      await subscriptionService.incrementInvoiceCount();
+      
       Alert.alert('Success', 'Invoice created successfully', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
@@ -159,17 +214,19 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
                 <Text style={styles.selectButtonText}>Select Existing Customer</Text>
               </TouchableOpacity>
 
-              <Text style={styles.orText}>OR</Text>
+              <Text style={styles.orText}>OR ADD NEW CUSTOMER</Text>
 
               <TextInput
                 style={styles.input}
-                placeholder="Customer Name *"
+                placeholder="Customer Name (Required)"
+                placeholderTextColor="#999"
                 value={newCustomerName}
                 onChangeText={setNewCustomerName}
               />
               <TextInput
                 style={styles.input}
-                placeholder="Email"
+                placeholder="Email Address (Required)"
+                placeholderTextColor="#999"
                 value={newCustomerEmail}
                 onChangeText={setNewCustomerEmail}
                 keyboardType="email-address"
@@ -177,7 +234,8 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
               />
               <TextInput
                 style={styles.input}
-                placeholder="Phone"
+                placeholder="Phone Number (Optional)"
+                placeholderTextColor="#999"
                 value={newCustomerPhone}
                 onChangeText={setNewCustomerPhone}
                 keyboardType="phone-pad"
@@ -221,7 +279,8 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
 
               <TextInput
                 style={styles.input}
-                placeholder="Description *"
+                placeholder="Item Description (e.g., Web Design Service)"
+                placeholderTextColor="#999"
                 value={item.description}
                 onChangeText={(text) => updateItem(item.id, 'description', text)}
               />
@@ -230,14 +289,26 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
                 <TextInput
                   style={[styles.input, styles.itemRowInput]}
                   placeholder="Qty"
+                  placeholderTextColor="#999"
                   value={item.quantity}
+                  onFocus={() => {
+                    if (item.quantity === '0' || item.quantity === '1') {
+                      updateItem(item.id, 'quantity', '');
+                    }
+                  }}
                   onChangeText={(text) => updateItem(item.id, 'quantity', text)}
                   keyboardType="numeric"
                 />
                 <TextInput
                   style={[styles.input, styles.itemRowInput]}
-                  placeholder="Unit Price"
+                  placeholder="Price ($)"
+                  placeholderTextColor="#999"
                   value={item.unit_price}
+                  onFocus={() => {
+                    if (item.unit_price === '0') {
+                      updateItem(item.id, 'unit_price', '');
+                    }
+                  }}
                   onChangeText={(text) => updateItem(item.id, 'unit_price', text)}
                   keyboardType="numeric"
                 />
@@ -260,11 +331,105 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
           <Text style={styles.sectionTitle}>Additional Details</Text>
           
           <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Invoice Date</Text>
+            <TouchableOpacity 
+              style={styles.datePickerButton}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={styles.datePickerButtonText}>
+                {issueDate.toLocaleDateString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric', 
+                  year: 'numeric' 
+                })}
+              </Text>
+              <Text style={styles.datePickerIcon}>📅</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Days Until Due</Text>
+            <View style={styles.daysPickerRow}>
+              <TouchableOpacity
+                style={styles.daysButton}
+                onPress={() => setDaysUntilDue('7')}
+              >
+                <Text style={[styles.daysButtonText, daysUntilDue === '7' && styles.daysButtonActive]}>
+                  7 days
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.daysButton}
+                onPress={() => setDaysUntilDue('15')}
+              >
+                <Text style={[styles.daysButtonText, daysUntilDue === '15' && styles.daysButtonActive]}>
+                  15 days
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.daysButton}
+                onPress={() => setDaysUntilDue('30')}
+              >
+                <Text style={[styles.daysButtonText, daysUntilDue === '30' && styles.daysButtonActive]}>
+                  30 days
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.daysButton}
+                onPress={() => setDaysUntilDue('60')}
+              >
+                <Text style={[styles.daysButtonText, daysUntilDue === '60' && styles.daysButtonActive]}>
+                  60 days
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.daysPickerRow}>
+              <View style={[styles.daysButton, styles.customDaysButton]}>
+                <TextInput
+                  style={styles.customDaysInput}
+                  placeholder="Custom"
+                  placeholderTextColor="#fff"
+                  value={customDays}
+                  onChangeText={(text) => {
+                    setCustomDays(text);
+                    if (text) {
+                      setDaysUntilDue(text);
+                    }
+                  }}
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Due Date</Text>
+            <View style={styles.dateDisplay}>
+              <Text style={styles.dateText}>
+                {calculateDueDate().toLocaleDateString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric', 
+                  year: 'numeric' 
+                })}
+              </Text>
+              <Text style={styles.dateSubtext}>
+                {daysUntilDue} days from invoice date
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Tax Rate (%)</Text>
             <TextInput
               style={styles.input}
-              placeholder="0"
+              placeholder="0 (e.g., 8.5 for 8.5% tax)"
+              placeholderTextColor="#999"
               value={taxRate}
+              onFocus={() => {
+                if (taxRate === '0') {
+                  setTaxRate('');
+                }
+              }}
               onChangeText={setTaxRate}
               keyboardType="numeric"
             />
@@ -274,7 +439,8 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
             <Text style={styles.inputLabel}>Notes</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Additional notes..."
+              placeholder="Payment terms, thank you message, etc. (Optional)"
+              placeholderTextColor="#999"
               value={notes}
               onChangeText={setNotes}
               multiline
@@ -322,7 +488,100 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
         </TouchableOpacity>
       </View>
 
-      {/* Customer Picker Modal would go here - simplified for MVP */}
+      {/* Customer Picker Modal */}
+      <Modal
+        visible={showCustomerPicker}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCustomerPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Customer</Text>
+              <TouchableOpacity onPress={() => setShowCustomerPicker(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={customers}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <View style={styles.customerItem}>
+                  <TouchableOpacity
+                    style={styles.customerItemContent}
+                    onPress={() => {
+                      setSelectedCustomer(item);
+                      setShowCustomerPicker(false);
+                    }}
+                  >
+                    <View>
+                      <Text style={styles.customerItemName}>{item.name}</Text>
+                      {item.email && (
+                        <Text style={styles.customerItemDetail}>{item.email}</Text>
+                      )}
+                      {item.phone && (
+                        <Text style={styles.customerItemDetail}>{item.phone}</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.customerDeleteButton}
+                    onPress={() => {
+                      Alert.alert(
+                        'Delete Customer',
+                        `Are you sure you want to delete ${item.name}?`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Delete',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                await customerService.deleteCustomer(item.id);
+                                await loadCustomers();
+                                Alert.alert('Success', 'Customer deleted');
+                              } catch (error: any) {
+                                Alert.alert('Error', error.message);
+                              }
+                            },
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    <Text style={styles.customerDeleteText}>🗑️</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              ListEmptyComponent={
+                <View style={styles.emptyList}>
+                  <Text style={styles.emptyListText}>No customers yet</Text>
+                  <Text style={styles.emptyListSubtext}>
+                    Create your first customer by filling the form above
+                  </Text>
+                </View>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Date Picker Modal */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={issueDate}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowDatePicker(Platform.OS === 'ios');
+            if (selectedDate) {
+              setIssueDate(selectedDate);
+            }
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -358,13 +617,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   input: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#ffffff',
     padding: 12,
     borderRadius: 8,
     fontSize: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderWidth: 2,
+    borderColor: '#007AFF',
+    color: '#000000',
   },
   textArea: {
     height: 80,
@@ -467,6 +727,47 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 8,
   },
+  dateDisplay: {
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  dateText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  dateSubtext: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+  },
+  daysPickerRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  daysButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    alignItems: 'center',
+  },
+  daysButtonText: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  daysButtonActive: {
+    color: '#007AFF',
+    fontWeight: 'bold',
+  },
   totalsSection: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -508,6 +809,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     padding: 16,
+    paddingBottom: 48,
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
@@ -538,5 +840,108 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: '100%',
+    maxHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  modalClose: {
+    fontSize: 28,
+    color: '#666',
+    fontWeight: '300',
+  },
+  customerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  customerItemContent: {
+    flex: 1,
+    padding: 16,
+  },
+  customerItemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  customerItemDetail: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 2,
+  },
+  customerDeleteButton: {
+    padding: 16,
+    paddingRight: 20,
+  },
+  customerDeleteText: {
+    fontSize: 20,
+  },
+  emptyList: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyListText: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 8,
+  },
+  emptyListSubtext: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 16,
+  },
+  datePickerButtonText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  datePickerIcon: {
+    fontSize: 20,
+  },
+  customDaysButton: {
+    flex: 1,
+    backgroundColor: '#000',
+    borderWidth: 1,
+    borderColor: '#000',
+  },
+  customDaysInput: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    padding: 0,
   },
 });

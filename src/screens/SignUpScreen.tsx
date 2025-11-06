@@ -70,6 +70,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
             <TextInput
               style={styles.input}
               placeholder="Full Name"
+              placeholderTextColor="#999"
               value={fullName}
               onChangeText={setFullName}
               autoCapitalize="words"
@@ -79,6 +80,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
             <TextInput
               style={styles.input}
               placeholder="Email"
+              placeholderTextColor="#999"
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -89,6 +91,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
             <TextInput
               style={styles.input}
               placeholder="Password (min. 6 characters)"
+              placeholderTextColor="#999"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -98,6 +101,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
             <TextInput
               style={styles.input}
               placeholder="Confirm Password"
+              placeholderTextColor="#999"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
@@ -169,12 +173,13 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   input: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#ffffff',
     padding: 16,
     borderRadius: 8,
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderWidth: 2,
+    borderColor: '#007AFF',
+    color: '#000000',
   },
   button: {
     backgroundColor: '#007AFF',

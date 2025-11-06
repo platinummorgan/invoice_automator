@@ -48,6 +48,7 @@ export const invoiceService = {
       .insert({
         user_id: userId,
         customer_id: customerId,
+        customer_name: formData.customer_name, // Store name for history
         invoice_number: invoiceNumber,
         status: 'draft',
         issue_date: formData.issue_date.toISOString().split('T')[0],
@@ -85,7 +86,7 @@ export const invoiceService = {
     return invoice;
   },
 
-  async getInvoices(status?: string): Promise<Invoice[]> {
+  async getInvoices(status?: string, startDate?: string, endDate?: string): Promise<Invoice[]> {
     const session = await supabase.auth.getSession();
     if (!session.data.session?.user) throw new Error('Not authenticated');
 
@@ -95,8 +96,24 @@ export const invoiceService = {
       .eq('user_id', session.data.session.user.id)
       .order('created_at', { ascending: false });
 
-    if (status) {
+    if (status === 'voided') {
+      query = query.eq('status', 'void');
+    } else if (status === 'unpaid') {
+      // Unpaid = not paid and not void (includes draft, sent, overdue)
+      query = query.neq('status', 'paid').neq('status', 'void');
+    } else if (status) {
       query = query.eq('status', status);
+    } else {
+      // When showing 'all', exclude voided invoices by default
+      query = query.neq('status', 'void');
+    }
+
+    // Add date range filtering
+    if (startDate) {
+      query = query.gte('issue_date', startDate.split('T')[0]);
+    }
+    if (endDate) {
+      query = query.lte('issue_date', endDate.split('T')[0]);
     }
 
     const { data, error } = await query;
@@ -116,9 +133,16 @@ export const invoiceService = {
   },
 
   async updateInvoiceStatus(id: string, status: string) {
+    const updateData: any = { status };
+    
+    // Set sent_at timestamp when marking as sent
+    if (status === 'sent') {
+      updateData.sent_at = new Date().toISOString();
+    }
+    
     const { data, error } = await supabase
       .from('invoices')
-      .update({ status })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();
@@ -132,23 +156,65 @@ export const invoiceService = {
     if (error) throw error;
   },
 
-  async getDashboardStats() {
+  async voidInvoice(id: string, reason: string) {
+    const { data, error } = await supabase.rpc('void_invoice', {
+      p_invoice_id: id,
+      p_void_reason: reason,
+    });
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getDashboardStats(startDate?: string, endDate?: string) {
     const session = await supabase.auth.getSession();
     if (!session.data.session?.user) throw new Error('Not authenticated');
 
     const userId = session.data.session.user.id;
 
-    const { data: invoices, error } = await supabase
+    // Get non-voided invoices
+    let query = supabase
       .from('invoices')
       .select('status, total')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .neq('status', 'void');
+
+    // Add date range filtering
+    if (startDate) {
+      query = query.gte('issue_date', startDate.split('T')[0]);
+    }
+    if (endDate) {
+      query = query.lte('issue_date', endDate.split('T')[0]);
+    }
+
+    const { data: invoices, error } = await query;
 
     if (error) throw error;
+
+    // Get voided count separately
+    let voidQuery = supabase
+      .from('invoices')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('status', 'void');
+
+    // Add date range filtering for voided count
+    if (startDate) {
+      voidQuery = voidQuery.gte('issue_date', startDate.split('T')[0]);
+    }
+    if (endDate) {
+      voidQuery = voidQuery.lte('issue_date', endDate.split('T')[0]);
+    }
+
+    const { count: voidedCount, error: voidError } = await voidQuery;
+
+    if (voidError) throw voidError;
 
     const stats = {
       total: invoices?.length || 0,
       paid: invoices?.filter((i) => i.status === 'paid').length || 0,
       unpaid: invoices?.filter((i) => i.status !== 'paid').length || 0,
+      voided: voidedCount || 0,
       totalAmount: invoices?.reduce((sum, i) => sum + Number(i.total), 0) || 0,
       paidAmount:
         invoices
@@ -161,5 +227,64 @@ export const invoiceService = {
     };
 
     return stats;
+  },
+
+  async getMonthlyReports(year: number) {
+    const session = await supabase.auth.getSession();
+    if (!session.data.session?.user) throw new Error('Not authenticated');
+
+    const userId = session.data.session.user.id;
+
+    // Get all invoices for the year (excluding voided)
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
+
+    const { data: invoices, error } = await supabase
+      .from('invoices')
+      .select('issue_date, status, total')
+      .eq('user_id', userId)
+      .neq('status', 'void')
+      .gte('issue_date', startDate)
+      .lte('issue_date', endDate);
+
+    if (error) throw error;
+
+    // Group by month
+    const monthlyData: { [key: string]: any } = {};
+
+    invoices?.forEach((invoice) => {
+      const date = new Date(invoice.issue_date);
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const key = month;
+
+      if (!monthlyData[key]) {
+        monthlyData[key] = {
+          month,
+          year,
+          totalInvoices: 0,
+          paidAmount: 0,
+          unpaidAmount: 0,
+          paidCount: 0,
+          unpaidCount: 0,
+        };
+      }
+
+      monthlyData[key].totalInvoices++;
+      
+      if (invoice.status === 'paid') {
+        monthlyData[key].paidAmount += Number(invoice.total);
+        monthlyData[key].paidCount++;
+      } else {
+        monthlyData[key].unpaidAmount += Number(invoice.total);
+        monthlyData[key].unpaidCount++;
+      }
+    });
+
+    // Convert to array and sort by month
+    const reports = Object.values(monthlyData).sort((a: any, b: any) => 
+      parseInt(a.month) - parseInt(b.month)
+    );
+
+    return reports;
   },
 };

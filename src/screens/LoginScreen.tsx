@@ -45,13 +45,14 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>Invoice Automator</Text>
+        <Text style={styles.title}>Swift Invoice</Text>
         <Text style={styles.subtitle}>Invoice from the job site in 60 seconds</Text>
 
         <View style={styles.form}>
           <TextInput
             style={styles.input}
             placeholder="Email"
+            placeholderTextColor="#999"
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -62,6 +63,7 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
           <TextInput
             style={styles.input}
             placeholder="Password"
+            placeholderTextColor="#999"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -121,12 +123,13 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   input: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#ffffff',
     padding: 16,
     borderRadius: 8,
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderWidth: 2,
+    borderColor: '#007AFF',
+    color: '#000000',
   },
   button: {
     backgroundColor: '#007AFF',

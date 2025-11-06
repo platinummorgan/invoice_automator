@@ -2,7 +2,7 @@
 
 export type SubscriptionTier = 'free' | 'monthly_basic' | 'annual_basic';
 export type SubscriptionStatus = 'active' | 'cancelled' | 'expired';
-export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled' | 'void';
 export type PaymentStatus = 'succeeded' | 'pending' | 'failed' | 'refunded';
 
 export interface Profile {
@@ -12,6 +12,7 @@ export interface Profile {
   business_name?: string;
   business_address?: string;
   business_phone?: string;
+  payment_instructions?: string;
   subscription_tier: SubscriptionTier;
   subscription_status: SubscriptionStatus;
   subscription_ends_at?: string;
@@ -49,6 +50,7 @@ export interface Invoice {
   id: string;
   user_id: string;
   customer_id?: string;
+  customer_name?: string; // Denormalized - preserved even if customer deleted
   invoice_number: string;
   status: InvoiceStatus;
   issue_date: string;
@@ -60,9 +62,12 @@ export interface Invoice {
   notes?: string;
   stripe_payment_link?: string;
   stripe_payment_intent_id?: string;
+  sent_at?: string;
   paid_at?: string;
   last_reminder_sent_at?: string;
   reminder_count: number;
+  voided_at?: string;
+  void_reason?: string;
   created_at: string;
   updated_at: string;
   customer?: Customer;

@@ -4,6 +4,7 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
 import { authService } from './src/services/auth';
+import { subscriptionService } from './src/services/subscription';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -11,6 +12,7 @@ export default function App() {
 
   useEffect(() => {
     checkAuth();
+    initializeServices();
 
     const { data: authListener } = authService.onAuthStateChange(
       (event, session) => {
@@ -22,6 +24,16 @@ export default function App() {
       authListener?.subscription?.unsubscribe();
     };
   }, []);
+
+  const initializeServices = async () => {
+    try {
+      // Initialize IAP connection and listeners
+      await subscriptionService.initialize();
+      console.log('IAP services initialized');
+    } catch (error) {
+      console.error('Error initializing services:', error);
+    }
+  };
 
   const checkAuth = async () => {
     try {

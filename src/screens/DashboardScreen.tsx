@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { invoiceService } from '../services/invoice';
+import { subscriptionService } from '../services/subscription';
 import { Invoice } from '../types';
 
 interface DashboardScreenProps {
@@ -22,19 +23,44 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
     total: 0,
     paid: 0,
     unpaid: 0,
+    voided: 0,
     totalAmount: 0,
     paidAmount: 0,
     unpaidAmount: 0,
   });
-  const [filter, setFilter] = useState<'all' | 'paid' | 'unpaid'>('all');
+  const [filter, setFilter] = useState<'all' | 'paid' | 'unpaid' | 'voided'>('all');
+  const [dateRange, setDateRange] = useState<'all' | 'month' | 'lastMonth' | 'year'>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
 
   const loadData = async () => {
     try {
+      // Calculate date range
+      let startDate: string | undefined;
+      let endDate: string | undefined;
+      
+      if (dateRange !== 'all') {
+        const now = new Date();
+        endDate = now.toISOString();
+        
+        if (dateRange === 'month') {
+          // This month: first day of current month to now
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        } else if (dateRange === 'lastMonth') {
+          // Last month: first day to last day of previous month
+          const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          startDate = lastMonth.toISOString();
+          endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString();
+        } else if (dateRange === 'year') {
+          // This year: Jan 1 to now
+          startDate = new Date(now.getFullYear(), 0, 1).toISOString();
+        }
+      }
+
       const [invoicesData, statsData] = await Promise.all([
-        invoiceService.getInvoices(filter === 'all' ? undefined : filter),
-        invoiceService.getDashboardStats(),
+        invoiceService.getInvoices(filter === 'all' ? undefined : filter, startDate, endDate),
+        invoiceService.getDashboardStats(startDate, endDate),
       ]);
       setInvoices(invoicesData);
       setStats(statsData);
@@ -49,14 +75,29 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       loadData();
+      loadSubscription();
     });
+    
     return unsubscribe;
-  }, [navigation, filter]);
+  }, [navigation]);
+
+  useEffect(() => {
+    loadData();
+  }, [filter, dateRange]);
+
+  const loadSubscription = async () => {
+    try {
+      const status = await subscriptionService.getSubscriptionStatus();
+      setSubscriptionStatus(status);
+    } catch (error) {
+      console.error('Error loading subscription:', error);
+    }
+  };
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadData();
-  }, [filter]);
+  }, [filter, dateRange]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -73,8 +114,12 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
     }
   };
 
+  const getStatusLabel = (status: string) => {
+    return status === 'draft' ? 'open' : status;
+  };
+
   const formatCurrency = (amount: number) => {
-    return `$${amount.toFixed(2)}`;
+    return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const formatDate = (dateString: string) => {
@@ -94,12 +139,12 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
       <View style={styles.invoiceHeader}>
         <Text style={styles.invoiceNumber}>{item.invoice_number}</Text>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
+          <Text style={styles.statusText}>{getStatusLabel(item.status).toUpperCase()}</Text>
         </View>
       </View>
 
       <Text style={styles.customerName}>
-        {item.customer?.name || 'No customer'}
+        {item.customer?.name || item.customer_name || 'No customer'}
       </Text>
 
       <View style={styles.invoiceFooter}>
@@ -139,6 +184,61 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
         </View>
       </View>
 
+      {/* Pro Upgrade Banner (for free users) */}
+      {subscriptionStatus && !subscriptionStatus.isPro && (
+        <TouchableOpacity 
+          style={styles.proBanner}
+          onPress={() => navigation.navigate('Settings')}
+        >
+          <View style={styles.proBannerContent}>
+            <Text style={styles.proBannerEmoji}>⭐</Text>
+            <View style={styles.proBannerText}>
+              <Text style={styles.proBannerTitle}>Upgrade to Pro</Text>
+              <Text style={styles.proBannerSubtitle}>
+                {subscriptionStatus.remainingInvoices} of {subscriptionStatus.invoiceLimit} free invoices left • Unlimited for $3.99/mo
+              </Text>
+            </View>
+            <Text style={styles.proBannerArrow}>›</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Date Range Filter */}
+      <View style={styles.dateRangeContainer}>
+        <TouchableOpacity
+          style={[styles.dateRangeButton, dateRange === 'all' && styles.dateRangeButtonActive]}
+          onPress={() => setDateRange('all')}
+        >
+          <Text style={[styles.dateRangeText, dateRange === 'all' && styles.dateRangeTextActive]}>
+            All Time
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.dateRangeButton, dateRange === 'month' && styles.dateRangeButtonActive]}
+          onPress={() => setDateRange('month')}
+        >
+          <Text style={[styles.dateRangeText, dateRange === 'month' && styles.dateRangeTextActive]}>
+            This Month
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.dateRangeButton, dateRange === 'lastMonth' && styles.dateRangeButtonActive]}
+          onPress={() => setDateRange('lastMonth')}
+        >
+          <Text style={[styles.dateRangeText, dateRange === 'lastMonth' && styles.dateRangeTextActive]}>
+            Last Month
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.dateRangeButton, dateRange === 'year' && styles.dateRangeButtonActive]}
+          onPress={() => setDateRange('year')}
+        >
+          <Text style={[styles.dateRangeText, dateRange === 'year' && styles.dateRangeTextActive]}>
+            This Year
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Filter Tabs */}
       <View style={styles.filterContainer}>
         <TouchableOpacity
@@ -146,7 +246,10 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
           onPress={() => setFilter('all')}
         >
           <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
-            All ({stats.total})
+            All
+          </Text>
+          <Text style={[styles.filterCount, filter === 'all' && styles.filterCountActive]}>
+            ({stats.total})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -154,7 +257,10 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
           onPress={() => setFilter('paid')}
         >
           <Text style={[styles.filterText, filter === 'paid' && styles.filterTextActive]}>
-            Paid ({stats.paid})
+            Paid
+          </Text>
+          <Text style={[styles.filterCount, filter === 'paid' && styles.filterCountActive]}>
+            ({stats.paid})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -162,7 +268,21 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
           onPress={() => setFilter('unpaid')}
         >
           <Text style={[styles.filterText, filter === 'unpaid' && styles.filterTextActive]}>
-            Unpaid ({stats.unpaid})
+            Unpaid
+          </Text>
+          <Text style={[styles.filterCount, filter === 'unpaid' && styles.filterCountActive]}>
+            ({stats.unpaid})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterTab, filter === 'voided' && styles.filterTabActive]}
+          onPress={() => setFilter('voided')}
+        >
+          <Text style={[styles.filterText, filter === 'voided' && styles.filterTextActive]}>
+            Voided
+          </Text>
+          <Text style={[styles.filterCount, filter === 'voided' && styles.filterCountActive]}>
+            ({stats.voided})
           </Text>
         </TouchableOpacity>
       </View>
@@ -208,12 +328,12 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     padding: 16,
-    gap: 12,
+    gap: 8,
   },
   statCard: {
     flex: 1,
     backgroundColor: '#fff',
-    padding: 16,
+    padding: 12,
     borderRadius: 12,
     elevation: 2,
     shadowColor: '#000',
@@ -222,20 +342,50 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666',
     marginBottom: 4,
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
   },
   filterContainer: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    marginBottom: 8,
+    paddingBottom: 16,
     gap: 8,
+  },
+  dateRangeContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  dateRangeButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#f5f5f5',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  dateRangeButtonActive: {
+    backgroundColor: '#e3f2fd',
+    borderColor: '#007AFF',
+  },
+  dateRangeText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  dateRangeTextActive: {
+    color: '#007AFF',
+    fontWeight: '600',
   },
   filterTab: {
     flex: 1,
@@ -254,6 +404,15 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   filterTextActive: {
+    color: '#fff',
+  },
+  filterCount: {
+    fontSize: 12,
+    color: '#999',
+    fontWeight: '400',
+    marginTop: 4,
+  },
+  filterCountActive: {
     color: '#fff',
   },
   listContainer: {
@@ -346,5 +505,45 @@ const styles = StyleSheet.create({
     fontSize: 32,
     color: '#fff',
     fontWeight: '300',
+  },
+  proBanner: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    padding: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  proBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  proBannerEmoji: {
+    fontSize: 32,
+    marginRight: 12,
+  },
+  proBannerText: {
+    flex: 1,
+  },
+  proBannerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  proBannerSubtitle: {
+    fontSize: 13,
+    color: '#fff',
+    opacity: 0.9,
+  },
+  proBannerArrow: {
+    fontSize: 24,
+    color: '#fff',
+    marginLeft: 8,
   },
 });
