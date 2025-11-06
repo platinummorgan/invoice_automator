@@ -33,13 +33,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#007AFF"
-        }
-      ]
+      "expo-notifications"
     ],
     "extra": {
       "eas": {
