@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { authService } from '../services/auth';
+import { useTheme } from '../contexts/ThemeContext';
+import { GoogleIcon } from '../components/GoogleIcon';
 
 interface LoginScreenProps {
   navigation: any;
@@ -18,9 +20,31 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenProps) {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleAvailable, setGoogleAvailable] = useState(true);
+
+  useEffect(() => {
+    setGoogleAvailable(authService.isGoogleSignInAvailable());
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    try {
+      await authService.signInWithGoogle();
+      onLoginSuccess();
+    } catch (error: any) {
+      if (error.message !== 'Google sign-in was cancelled or failed') {
+        Alert.alert('Google Sign-In Failed', error.message || 'Please try again');
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -52,7 +76,7 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
           <TextInput
             style={styles.input}
             placeholder="Email"
-            placeholderTextColor="#999"
+            placeholderTextColor={theme.colors.placeholder}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -63,7 +87,7 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
           <TextInput
             style={styles.input}
             placeholder="Password"
-            placeholderTextColor="#999"
+            placeholderTextColor={theme.colors.placeholder}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -71,9 +95,17 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
           />
 
           <TouchableOpacity
+            onPress={() => navigation.navigate('ForgotPassword')}
+            disabled={loading}
+            style={styles.forgotPassword}
+          >
+            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleLogin}
-            disabled={loading}
+            disabled={loading || googleLoading}
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
@@ -82,9 +114,32 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
             )}
           </TouchableOpacity>
 
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+            onPress={handleGoogleSignIn}
+            disabled={loading || googleLoading || !googleAvailable}
+          >
+            {googleLoading ? (
+              <ActivityIndicator color="#333" />
+            ) : (
+              <>
+                <GoogleIcon size={20} />
+                <Text style={styles.googleButtonText}>
+                  {googleAvailable ? 'Continue with Google' : 'Google Sign-In requires dev build'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
           <TouchableOpacity
             onPress={() => navigation.navigate('SignUp')}
-            disabled={loading}
+            disabled={loading || googleLoading}
           >
             <Text style={styles.linkText}>
               Don't have an account? <Text style={styles.linkTextBold}>Sign Up</Text>
@@ -96,10 +151,10 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background,
   },
   content: {
     flex: 1,
@@ -109,13 +164,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#333',
+    color: theme.colors.text,
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginBottom: 48,
     textAlign: 'center',
   },
@@ -123,16 +178,16 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   input: {
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.colors.inputBackground,
     padding: 16,
     borderRadius: 8,
     fontSize: 16,
     borderWidth: 2,
-    borderColor: '#007AFF',
-    color: '#000000',
+    borderColor: theme.colors.inputBorder,
+    color: theme.colors.text,
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.primary,
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
@@ -146,13 +201,63 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  forgotPassword: {
+    alignSelf: 'flex-end',
+    marginTop: -8,
+  },
+  forgotPasswordText: {
+    color: theme.colors.primary,
+    fontSize: 14,
+  },
   linkText: {
     textAlign: 'center',
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginTop: 16,
   },
+  resendText: {
+    textAlign: 'center',
+    color: theme.colors.textSecondary,
+    marginTop: 12,
+    fontSize: 14,
+  },
   linkTextBold: {
-    color: '#007AFF',
+    color: theme.colors.primary,
     fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.border,
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    color: theme.colors.textSecondary,
+    fontSize: 14,
+  },
+  googleButton: {
+    backgroundColor: theme.colors.card,
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 12,
+  },
+  googleButtonText: {
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  googleIcon: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
   },
 });

@@ -5,6 +5,21 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
 import { authService } from './src/services/auth';
 import { subscriptionService } from './src/services/subscription';
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+
+function AppContent({ isAuthenticated, onLoginSuccess }: { isAuthenticated: boolean; onLoginSuccess: () => void }) {
+  const { isDark } = useTheme();
+  
+  return (
+    <SafeAreaProvider>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <AppNavigator
+        isAuthenticated={isAuthenticated}
+        onLoginSuccess={onLoginSuccess}
+      />
+    </SafeAreaProvider>
+  );
+}
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -12,7 +27,6 @@ export default function App() {
 
   useEffect(() => {
     checkAuth();
-    initializeServices();
 
     const { data: authListener } = authService.onAuthStateChange(
       (event, session) => {
@@ -22,18 +36,11 @@ export default function App() {
 
     return () => {
       authListener?.subscription?.unsubscribe();
+      subscriptionService.cleanup().catch((error) => {
+        console.warn('Error cleaning up IAP services:', error);
+      });
     };
   }, []);
-
-  const initializeServices = async () => {
-    try {
-      // Initialize IAP connection and listeners
-      await subscriptionService.initialize();
-      console.log('IAP services initialized');
-    } catch (error) {
-      console.error('Error initializing services:', error);
-    }
-  };
 
   const checkAuth = async () => {
     try {
@@ -59,13 +66,12 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style="auto" />
-      <AppNavigator
+    <ThemeProvider>
+      <AppContent
         isAuthenticated={isAuthenticated}
         onLoginSuccess={handleLoginSuccess}
       />
-    </SafeAreaProvider>
+    </ThemeProvider>
   );
 }
 

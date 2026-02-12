@@ -4,6 +4,32 @@ export type SubscriptionTier = 'free' | 'monthly_basic' | 'annual_basic';
 export type SubscriptionStatus = 'active' | 'cancelled' | 'expired';
 export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled' | 'void';
 export type PaymentStatus = 'succeeded' | 'pending' | 'failed' | 'refunded';
+export type InvoiceTemplate = 'classic' | 'painter' | 'minimal';
+export type TemplateHeaderLayout = 'stacked' | 'inline';
+export type PaymentMethodType =
+  | 'paypal'
+  | 'venmo'
+  | 'cash_app'
+  | 'zelle'
+  | 'stripe'
+  | 'bank_transfer'
+  | 'other';
+
+export interface BusinessPaymentMethod {
+  type: PaymentMethodType;
+  label: string;
+  value: string;
+}
+
+export interface InvoiceTemplateSettings {
+  accent_color: string;
+  header_layout: TemplateHeaderLayout;
+  show_logo: boolean;
+  show_business_contact: boolean;
+  show_notes: boolean;
+  highlight_totals: boolean;
+  footer_text: string;
+}
 
 export interface Profile {
   id: string;
@@ -13,6 +39,10 @@ export interface Profile {
   business_address?: string;
   business_phone?: string;
   payment_instructions?: string;
+  payment_methods?: BusinessPaymentMethod[] | null;
+  logo_url?: string;
+  invoice_template?: InvoiceTemplate;
+  template_settings?: Partial<InvoiceTemplateSettings> | null;
   subscription_tier: SubscriptionTier;
   subscription_status: SubscriptionStatus;
   subscription_ends_at?: string;

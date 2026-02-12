@@ -60,7 +60,8 @@
         {
           "photosPermission": "Allow Swift Invoice to access your photos so you can upload a business logo."
         }
-      ]
+      ],
+      "expo-mail-composer"
     ],
     "extra": {
       "eas": {

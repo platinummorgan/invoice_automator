@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   Modal,
 } from 'react-native';
+import Constants from 'expo-constants';
+import * as Application from 'expo-application';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface AboutScreenProps {
   visible: boolean;
@@ -14,6 +17,10 @@ interface AboutScreenProps {
 }
 
 export default function AboutScreen({ visible, onClose }: AboutScreenProps) {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
+  const version = Constants.expoConfig?.version || Application.nativeApplicationVersion || 'unknown';
+
   return (
     <Modal
       visible={visible}
@@ -32,7 +39,7 @@ export default function AboutScreen({ visible, onClose }: AboutScreenProps) {
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           <View style={styles.logoContainer}>
             <Text style={styles.appName}>Swift Invoice</Text>
-            <Text style={styles.version}>Version 1.0.0</Text>
+            <Text style={styles.version}>Version {version}</Text>
           </View>
 
           <View style={styles.section}>
@@ -46,7 +53,7 @@ export default function AboutScreen({ visible, onClose }: AboutScreenProps) {
             <Text style={styles.sectionTitle}>Features</Text>
             <Text style={styles.bulletPoint}>• Create professional invoices in seconds</Text>
             <Text style={styles.bulletPoint}>• Manage customers and their contact information</Text>
-            <Text style={styles.bulletPoint}>• Send invoices via email instantly</Text>
+            <Text style={styles.bulletPoint}>• Email invoices using your phone's email app</Text>
             <Text style={styles.bulletPoint}>• Track invoice status (draft, sent, paid, overdue)</Text>
             <Text style={styles.bulletPoint}>• Add payment instructions and methods</Text>
             <Text style={styles.bulletPoint}>• Preview invoices before sending</Text>
@@ -62,7 +69,7 @@ export default function AboutScreen({ visible, onClose }: AboutScreenProps) {
               Powered by Supabase for secure data storage and authentication.
             </Text>
             <Text style={styles.paragraph}>
-              Email delivery by Resend for reliable invoice sending.
+              Uses your device's email app for sending invoices and receipts.
             </Text>
           </View>
 
@@ -92,10 +99,10 @@ export default function AboutScreen({ visible, onClose }: AboutScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
   },
   header: {
     flexDirection: 'row',
@@ -103,19 +110,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: theme.colors.border,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
   },
   closeButton: {
     padding: 8,
   },
   closeButtonText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   content: {
@@ -128,18 +135,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 32,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: theme.colors.border,
     marginBottom: 24,
   },
   appName: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#007AFF',
+    color: theme.colors.primary,
     marginBottom: 8,
   },
   version: {
     fontSize: 16,
-    color: '#666',
+    color: theme.colors.textSecondary,
   },
   section: {
     marginBottom: 24,
@@ -147,18 +154,18 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
     marginBottom: 12,
   },
   paragraph: {
     fontSize: 15,
-    color: '#333',
+    color: theme.colors.text,
     lineHeight: 22,
     marginBottom: 12,
   },
   bulletPoint: {
     fontSize: 15,
-    color: '#333',
+    color: theme.colors.text,
     lineHeight: 22,
     marginBottom: 8,
     paddingLeft: 8,
@@ -168,11 +175,11 @@ const styles = StyleSheet.create({
     paddingTop: 32,
     marginTop: 32,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: theme.colors.border,
   },
   footerText: {
     fontSize: 14,
-    color: '#999',
+    color: theme.colors.placeholder,
     marginBottom: 4,
   },
   bottomSpacer: {

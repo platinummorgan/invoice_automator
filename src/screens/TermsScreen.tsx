@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Modal,
 } from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface TermsScreenProps {
   visible: boolean;
@@ -14,6 +15,9 @@ interface TermsScreenProps {
 }
 
 export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
+
   return (
     <Modal
       visible={visible}
@@ -119,10 +123,10 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
   },
   header: {
     flexDirection: 'row',
@@ -130,19 +134,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: theme.colors.border,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
   },
   closeButton: {
     padding: 8,
   },
   closeButtonText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   content: {
@@ -153,26 +157,26 @@ const styles = StyleSheet.create({
   },
   lastUpdated: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginBottom: 24,
     fontStyle: 'italic',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
     marginTop: 24,
     marginBottom: 12,
   },
   paragraph: {
     fontSize: 15,
-    color: '#333',
+    color: theme.colors.text,
     lineHeight: 22,
     marginBottom: 12,
   },
   bulletPoint: {
     fontSize: 15,
-    color: '#333',
+    color: theme.colors.text,
     lineHeight: 22,
     marginBottom: 8,
     paddingLeft: 8,

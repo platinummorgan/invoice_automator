@@ -1,16 +1,16 @@
-# Invoice Automator 📱
+# Invoice Automator
 
-**Dead-simple invoicing for contractors** - Create invoices from the job site in 60 seconds with pay-now links, automatic reminders, and instant receipts.
+**Dead-simple invoicing for contractors** - Create invoices from the job site in 60 seconds with clear payment instructions and fast sending.
 
 ## 🚀 MVP Features
 
 - ✅ **Invoice Creation** - Quick invoice form with line items and tax calculation
 - ✅ **Customer Management** - Save customers or import from device contacts
-- ✅ **Stripe Payment Links** - One-click payment links that customers can pay instantly
+- ✅ **Flexible Payment Instructions** - Add your own payment methods (PayPal, Venmo, Cash App, Zelle, Stripe links, etc.)
 - ✅ **Dashboard** - View all invoices with paid/unpaid filters
-- ✅ **Native Sharing** - Share payment links via SMS, email, or any app
-- 📧 **Auto-Reminders** - Scheduled email reminders for unpaid invoices
-- 🧾 **Receipts** - Auto-generate and email receipts when paid
+- ✅ **Email Invoices** - Open your phone's email app with a pre-filled invoice draft
+- ✅ **Invoice Branding** - Upload your logo and choose invoice template styles
+- 🧾 **Receipts** - Open your phone's email app with a pre-filled receipt draft
 - 🔔 **Push Notifications** - Get notified when invoices are paid
 - 💰 **Subscription Tiers** - Free (2 invoices/mo) → $12-24/mo with optional platform fees
 
@@ -18,8 +18,8 @@
 
 - **Frontend**: React Native with Expo (Android-first)
 - **Backend**: Supabase (Auth, Database, Real-time)
-- **Payments**: Stripe Payment Links & Webhooks
-- **Email**: Resend API
+- **Payments**: Business-provided payment methods and links
+- **Email**: Device email composer (Expo Mail Composer)
 - **Notifications**: Expo Notifications + FCM
 
 ## 📋 Prerequisites
@@ -29,8 +29,6 @@
 - Android Studio (for Android development)
 - Accounts:
   - [Supabase](https://supabase.com) (free tier)
-  - [Stripe](https://stripe.com) (test mode)
-  - [Resend](https://resend.com) (free tier)
 
 ## 🏗 Setup Instructions
 
@@ -47,21 +45,7 @@ npm install
 2. Go to SQL Editor and run the schema from `supabase/schema.sql`
 3. Get your project URL and anon key from Settings > API
 
-### 3. Set Up Stripe
-
-1. Create account at [stripe.com](https://stripe.com)
-2. Get your test mode secret key from Developers > API Keys
-3. Set up webhook endpoint (for production):
-   - URL: `https://your-backend.com/api/stripe-webhook`
-   - Events: `payment_intent.succeeded`, `payment_intent.payment_failed`
-
-### 4. Set Up Resend (Email)
-
-1. Create account at [resend.com](https://resend.com)
-2. Verify your domain or use test email
-3. Get API key from Settings
-
-### 5. Configure Environment Variables
+### 3. Configure Environment Variables
 
 ```bash
 cp .env.example .env
@@ -72,13 +56,10 @@ Edit `.env` with your credentials:
 ```env
 EXPO_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-STRIPE_SECRET_KEY=sk_test_xxxxx
-EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
-RESEND_API_KEY=re_xxxxx
 EXPO_PUBLIC_APP_URL=https://yourdomain.com
 ```
 
-### 6. Run the App
+### 4. Run the App
 
 ```bash
 # Start Expo development server
@@ -105,10 +86,11 @@ npm run ios
 4. Set tax rate (if applicable)
 5. Tap "Create Invoice"
 
-### Sending Payment Links
+### Sending Invoices
 1. Open the invoice
-2. Tap "Generate Payment Link"
-3. Use native share to send via SMS, email, WhatsApp, etc.
+2. Tap "Preview Invoice"
+3. Tap "Open Email"
+4. Add payment methods/links in Settings > Business Info > Payment Methods
 
 ### Managing Subscriptions
 - **Free Tier**: 2 invoices per month
@@ -132,7 +114,7 @@ invoice_automator/
 │   │   ├── auth.ts      # Authentication
 │   │   ├── invoice.ts   # Invoice CRUD
 │   │   ├── customer.ts  # Customer management
-│   │   └── payment.ts   # Stripe integration
+│   │   └── payment.ts   # Payment status + manual payment records
 │   ├── components/       # Reusable components
 │   └── types/           # TypeScript types
 ├── supabase/
@@ -153,7 +135,6 @@ invoice_automator/
 - [x] Basic navigation
 
 ### In Progress 🚧
-- [ ] Stripe payment link generation
 - [ ] Payment status tracking
 - [ ] Push notifications setup
 - [ ] Auto-reminder system
@@ -162,7 +143,7 @@ invoice_automator/
 
 ### Next Steps 📝
 1. Create invoice detail screen
-2. Integrate Stripe payment links
+2. Improve payment-method templates
 3. Add native share functionality
 4. Set up Supabase Edge Functions for reminders
 5. Implement push notifications
@@ -220,7 +201,7 @@ cd .. && npm run android
 - 🪄 **Magic Invoice**: Generate from plain text or screenshot (AI)
 - 🔄 **Recurring Invoices**: Auto-generate monthly/weekly invoices
 - 📊 **Reports**: Revenue tracking and analytics
-- 💳 **Multiple Payment Methods**: PayPal, Venmo integration
+- 💳 **Multiple Payment Methods**: Better templates and customer payment UX
 - 🌍 **Multi-currency**: Support international customers
 - 📱 **iOS Version**: Expand to iOS after Android validation
 - 🎨 **Custom Branding**: Logo and color customization

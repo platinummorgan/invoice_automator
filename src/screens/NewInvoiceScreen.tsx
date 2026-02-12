@@ -18,6 +18,7 @@ import { invoiceService } from '../services/invoice';
 import { customerService } from '../services/customer';
 import { subscriptionService } from '../services/subscription';
 import { Customer } from '../types';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface NewInvoiceScreenProps {
   navigation: any;
@@ -31,6 +32,8 @@ interface LineItem {
 }
 
 export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [newCustomerName, setNewCustomerName] = useState('');
@@ -165,37 +168,50 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
       return;
     }
 
-    setLoading(true);
-    try {
-      const formData = {
-        customer_id: selectedCustomer?.id,
-        customer_name: newCustomerName || selectedCustomer?.name,
-        customer_email: newCustomerEmail || selectedCustomer?.email,
-        customer_phone: newCustomerPhone || selectedCustomer?.phone,
-        issue_date: issueDate,
-        due_date: calculateDueDate(),
-        tax_rate: parseFloat(taxRate) || 0,
-        notes,
-        items: items.map((item) => ({
-          description: item.description,
-          quantity: parseFloat(item.quantity) || 1,
-          unit_price: parseFloat(item.unit_price) || 0,
-        })),
-      };
+    // Show confirmation dialog before creating invoice
+    Alert.alert(
+      'Create Invoice?',
+      'Once created, invoices cannot be edited. If you need to make changes later, you must void this invoice and create a new one.\n\nDo you want to continue?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Create Invoice',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              const formData = {
+                customer_id: selectedCustomer?.id,
+                customer_name: newCustomerName || selectedCustomer?.name,
+                customer_email: newCustomerEmail || selectedCustomer?.email,
+                customer_phone: newCustomerPhone || selectedCustomer?.phone,
+                issue_date: issueDate,
+                due_date: calculateDueDate(),
+                tax_rate: parseFloat(taxRate) || 0,
+                notes,
+                items: items.map((item) => ({
+                  description: item.description,
+                  quantity: parseFloat(item.quantity) || 1,
+                  unit_price: parseFloat(item.unit_price) || 0,
+                })),
+              };
 
-      await invoiceService.createInvoice(formData);
-      
-      // Increment invoice count for free users
-      await subscriptionService.incrementInvoiceCount();
-      
-      Alert.alert('Success', 'Invoice created successfully', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
-    } catch (error: any) {
-      Alert.alert('Error', error.message);
-    } finally {
-      setLoading(false);
-    }
+              await invoiceService.createInvoice(formData);
+              
+              Alert.alert('Success', 'Invoice created successfully', [
+                { text: 'OK', onPress: () => navigation.goBack() },
+              ]);
+            } catch (error: any) {
+              Alert.alert('Error', error.message);
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -219,14 +235,14 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
               <TextInput
                 style={styles.input}
                 placeholder="Customer Name (Required)"
-                placeholderTextColor="#999"
+                placeholderTextColor={theme.colors.placeholder}
                 value={newCustomerName}
                 onChangeText={setNewCustomerName}
               />
               <TextInput
                 style={styles.input}
                 placeholder="Email Address (Required)"
-                placeholderTextColor="#999"
+                placeholderTextColor={theme.colors.placeholder}
                 value={newCustomerEmail}
                 onChangeText={setNewCustomerEmail}
                 keyboardType="email-address"
@@ -235,7 +251,7 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
               <TextInput
                 style={styles.input}
                 placeholder="Phone Number (Optional)"
-                placeholderTextColor="#999"
+                placeholderTextColor={theme.colors.placeholder}
                 value={newCustomerPhone}
                 onChangeText={setNewCustomerPhone}
                 keyboardType="phone-pad"
@@ -280,7 +296,7 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
               <TextInput
                 style={styles.input}
                 placeholder="Item Description (e.g., Web Design Service)"
-                placeholderTextColor="#999"
+                placeholderTextColor={theme.colors.placeholder}
                 value={item.description}
                 onChangeText={(text) => updateItem(item.id, 'description', text)}
               />
@@ -289,7 +305,7 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
                 <TextInput
                   style={[styles.input, styles.itemRowInput]}
                   placeholder="Qty"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={theme.colors.placeholder}
                   value={item.quantity}
                   onFocus={() => {
                     if (item.quantity === '0' || item.quantity === '1') {
@@ -302,7 +318,7 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
                 <TextInput
                   style={[styles.input, styles.itemRowInput]}
                   placeholder="Price ($)"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={theme.colors.placeholder}
                   value={item.unit_price}
                   onFocus={() => {
                     if (item.unit_price === '0') {
@@ -388,7 +404,7 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
                 <TextInput
                   style={styles.customDaysInput}
                   placeholder="Custom"
-                  placeholderTextColor="#fff"
+                  placeholderTextColor={theme.colors.background}
                   value={customDays}
                   onChangeText={(text) => {
                     setCustomDays(text);
@@ -423,7 +439,7 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
             <TextInput
               style={styles.input}
               placeholder="0 (e.g., 8.5 for 8.5% tax)"
-              placeholderTextColor="#999"
+              placeholderTextColor={theme.colors.placeholder}
               value={taxRate}
               onFocus={() => {
                 if (taxRate === '0') {
@@ -440,7 +456,7 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
             <TextInput
               style={[styles.input, styles.textArea]}
               placeholder="Payment terms, thank you message, etc. (Optional)"
-              placeholderTextColor="#999"
+              placeholderTextColor={theme.colors.placeholder}
               value={notes}
               onChangeText={setNotes}
               multiline
@@ -586,10 +602,10 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
   scrollView: {
     flex: 1,
@@ -599,7 +615,7 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   section: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -613,25 +629,25 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
     marginBottom: 16,
   },
   input: {
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.colors.inputBackground,
     padding: 12,
     borderRadius: 8,
     fontSize: 16,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: '#007AFF',
-    color: '#000000',
+    borderColor: theme.colors.inputBorder,
+    color: theme.colors.text,
   },
   textArea: {
     height: 80,
     textAlignVertical: 'top',
   },
   selectButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.primary,
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -644,40 +660,40 @@ const styles = StyleSheet.create({
   },
   orText: {
     textAlign: 'center',
-    color: '#999',
+    color: theme.colors.placeholder,
     marginVertical: 8,
   },
   selectedCustomer: {
     padding: 12,
-    backgroundColor: '#f0f8ff',
+    backgroundColor: theme.colors.primaryLight,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: theme.colors.primary,
   },
   selectedCustomerName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
     marginBottom: 4,
   },
   selectedCustomerDetail: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginBottom: 2,
   },
   changeButton: {
-    color: '#007AFF',
+    color: theme.colors.primary,
     fontSize: 14,
     marginTop: 8,
   },
   addButton: {
-    color: '#007AFF',
+    color: theme.colors.primary,
     fontSize: 14,
     fontWeight: '600',
   },
   itemCard: {
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: theme.colors.border,
     borderRadius: 8,
     padding: 12,
     marginBottom: 12,
@@ -690,10 +706,10 @@ const styles = StyleSheet.create({
   itemNumber: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
   },
   removeButton: {
-    color: '#F44336',
+    color: theme.colors.error,
     fontSize: 14,
   },
   itemRow: {
@@ -711,37 +727,37 @@ const styles = StyleSheet.create({
   },
   itemAmountLabel: {
     fontSize: 10,
-    color: '#999',
+    color: theme.colors.placeholder,
     marginBottom: 4,
   },
   itemAmountValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
   },
   inputGroup: {
     marginBottom: 16,
   },
   inputLabel: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginBottom: 8,
   },
   dateDisplay: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.colors.background,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: theme.colors.border,
   },
   dateText: {
     fontSize: 16,
-    color: '#333',
+    color: theme.colors.text,
     fontWeight: '500',
   },
   dateSubtext: {
     fontSize: 12,
-    color: '#999',
+    color: theme.colors.placeholder,
     marginTop: 4,
   },
   daysPickerRow: {
@@ -754,22 +770,22 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 8,
     borderRadius: 8,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     borderWidth: 2,
-    borderColor: '#e0e0e0',
+    borderColor: theme.colors.border,
     alignItems: 'center',
   },
   daysButtonText: {
     fontSize: 13,
-    color: '#666',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
   },
   daysButtonActive: {
-    color: '#007AFF',
+    color: theme.colors.primary,
     fontWeight: 'bold',
   },
   totalsSection: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -781,16 +797,16 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.textSecondary,
   },
   totalValue: {
     fontSize: 14,
-    color: '#333',
+    color: theme.colors.text,
     fontWeight: '500',
   },
   grandTotalRow: {
     borderTopWidth: 2,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: theme.colors.border,
     paddingTop: 12,
     marginTop: 12,
     marginBottom: 0,
@@ -798,21 +814,21 @@ const styles = StyleSheet.create({
   grandTotalLabel: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: theme.colors.text,
   },
   grandTotalValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: theme.colors.primary,
   },
   bottomActions: {
     flexDirection: 'row',
     gap: 12,
     padding: 16,
     paddingBottom: 48,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: theme.colors.border,
   },
   button: {
     flex: 1,
@@ -821,12 +837,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonPrimary: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.primary,
   },
   buttonSecondary: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: theme.colors.primary,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -837,19 +853,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   buttonSecondaryText: {
-    color: '#007AFF',
+    color: theme.colors.primary,
     fontSize: 16,
     fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: theme.colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     borderRadius: 20,
     width: '100%',
     maxHeight: '70%',
@@ -860,23 +876,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: theme.colors.border,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: theme.colors.text,
   },
   modalClose: {
     fontSize: 28,
-    color: '#666',
+    color: theme.colors.textSecondary,
     fontWeight: '300',
   },
   customerItem: {
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: theme.colors.border,
   },
   customerItemContent: {
     flex: 1,
@@ -885,12 +901,12 @@ const styles = StyleSheet.create({
   customerItemName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
     marginBottom: 4,
   },
   customerItemDetail: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginBottom: 2,
   },
   customerDeleteButton: {
@@ -906,39 +922,39 @@ const styles = StyleSheet.create({
   },
   emptyListText: {
     fontSize: 16,
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginBottom: 8,
   },
   emptyListSubtext: {
     fontSize: 14,
-    color: '#999',
+    color: theme.colors.placeholder,
     textAlign: 'center',
   },
   datePickerButton: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: theme.colors.border,
     borderRadius: 8,
     padding: 16,
   },
   datePickerButtonText: {
     fontSize: 16,
-    color: '#333',
+    color: theme.colors.text,
   },
   datePickerIcon: {
     fontSize: 20,
   },
   customDaysButton: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: theme.colors.text,
     borderWidth: 1,
-    borderColor: '#000',
+    borderColor: theme.colors.text,
   },
   customDaysInput: {
-    color: '#fff',
+    color: theme.colors.background,
     fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',

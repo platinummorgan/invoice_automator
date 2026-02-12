@@ -12,8 +12,13 @@ CREATE TABLE public.profiles (
   business_name TEXT,
   business_address TEXT,
   business_phone TEXT,
-  subscription_tier TEXT DEFAULT 'free' CHECK (subscription_tier IN ('free', 'monthly_basic', 'annual_basic')),
-  subscription_status TEXT DEFAULT 'active' CHECK (subscription_status IN ('active', 'cancelled', 'expired')),
+  payment_instructions TEXT,
+  payment_methods JSONB DEFAULT '[]'::jsonb,
+  logo_url TEXT,
+  invoice_template TEXT DEFAULT 'classic' CHECK (invoice_template IN ('classic', 'painter', 'minimal')),
+  template_settings JSONB DEFAULT '{}'::jsonb,
+  subscription_tier TEXT DEFAULT 'free' CHECK (subscription_tier IN ('free', 'monthly_basic', 'annual_basic', 'pro')),
+  subscription_status TEXT DEFAULT 'active' CHECK (subscription_status IN ('free', 'active', 'cancelled', 'expired')),
   subscription_ends_at TIMESTAMP WITH TIME ZONE,
   platform_fee_enabled BOOLEAN DEFAULT false,
   platform_fee_percentage DECIMAL(5,2) DEFAULT 0.5,
@@ -40,8 +45,9 @@ CREATE TABLE public.invoices (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+  customer_name TEXT,
   invoice_number TEXT NOT NULL,
-  status TEXT DEFAULT 'unpaid' CHECK (status IN ('draft', 'sent', 'paid', 'overdue', 'cancelled')),
+  status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'paid', 'overdue', 'cancelled', 'void')),
   issue_date DATE NOT NULL,
   due_date DATE NOT NULL,
   subtotal DECIMAL(10,2) DEFAULT 0,
@@ -51,7 +57,10 @@ CREATE TABLE public.invoices (
   notes TEXT,
   stripe_payment_link TEXT,
   stripe_payment_intent_id TEXT,
+  sent_at TIMESTAMP WITH TIME ZONE,
   paid_at TIMESTAMP WITH TIME ZONE,
+  voided_at TIMESTAMP WITH TIME ZONE,
+  void_reason TEXT,
   last_reminder_sent_at TIMESTAMP WITH TIME ZONE,
   reminder_count INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -91,6 +100,8 @@ CREATE INDEX idx_invoices_user_id ON public.invoices(user_id);
 CREATE INDEX idx_invoices_customer_id ON public.invoices(customer_id);
 CREATE INDEX idx_invoices_status ON public.invoices(status);
 CREATE INDEX idx_invoices_due_date ON public.invoices(due_date);
+CREATE INDEX idx_invoices_sent_at ON public.invoices(sent_at) WHERE sent_at IS NOT NULL;
+CREATE INDEX idx_invoices_void ON public.invoices(voided_at) WHERE voided_at IS NOT NULL;
 CREATE INDEX idx_customers_user_id ON public.customers(user_id);
 CREATE INDEX idx_invoice_items_invoice_id ON public.invoice_items(invoice_id);
 CREATE INDEX idx_payment_records_invoice_id ON public.payment_records(invoice_id);
@@ -246,4 +257,63 @@ BEGIN
   WHERE id = p_user_id;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Function to void an invoice with audit metadata.
+CREATE OR REPLACE FUNCTION public.void_invoice(
+  p_invoice_id UUID,
+  p_void_reason TEXT
+)
+RETURNS void AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.invoices
+    WHERE id = p_invoice_id
+      AND status = 'paid'
+  ) THEN
+    RAISE EXCEPTION 'Cannot void a paid invoice';
+  END IF;
+
+  UPDATE public.invoices
+  SET
+    status = 'void',
+    voided_at = NOW(),
+    void_reason = p_void_reason,
+    updated_at = NOW()
+  WHERE id = p_invoice_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Guardrail: prevent amount/date edits after an invoice is sent/paid/voided.
+CREATE OR REPLACE FUNCTION public.prevent_invoice_modification()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.status IN ('sent', 'paid', 'void') THEN
+    IF (
+      OLD.subtotal IS DISTINCT FROM NEW.subtotal OR
+      OLD.tax_amount IS DISTINCT FROM NEW.tax_amount OR
+      OLD.total IS DISTINCT FROM NEW.total OR
+      OLD.issue_date IS DISTINCT FROM NEW.issue_date OR
+      OLD.due_date IS DISTINCT FROM NEW.due_date OR
+      OLD.notes IS DISTINCT FROM NEW.notes
+    ) THEN
+      RAISE EXCEPTION 'Cannot modify % invoice. Void and create new invoice instead.', OLD.status;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS prevent_invoice_modification_trigger ON public.invoices;
+CREATE TRIGGER prevent_invoice_modification_trigger
+  BEFORE UPDATE ON public.invoices
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_invoice_modification();
+
+COMMENT ON COLUMN public.invoices.customer_name IS 'Denormalized customer name preserved for invoice history';
+COMMENT ON COLUMN public.invoices.sent_at IS 'Timestamp when invoice was emailed to customer';
+COMMENT ON COLUMN public.invoices.voided_at IS 'Timestamp when invoice was voided for audit trail';
+COMMENT ON COLUMN public.invoices.void_reason IS 'Reason for voiding the invoice';
+COMMENT ON COLUMN public.profiles.payment_methods IS 'Structured payment methods selected by user (type, label, value)';
 

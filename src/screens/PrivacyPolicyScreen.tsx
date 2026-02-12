@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Modal,
 } from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface PrivacyPolicyScreenProps {
   visible: boolean;
@@ -14,6 +15,9 @@ interface PrivacyPolicyScreenProps {
 }
 
 export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyScreenProps) {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
+
   return (
     <Modal
       visible={visible}
@@ -30,7 +34,7 @@ export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyS
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-          <Text style={styles.lastUpdated}>Last Updated: November 6, 2025</Text>
+          <Text style={styles.lastUpdated}>Last Updated: February 12, 2026</Text>
 
           <Text style={styles.sectionTitle}>1. Introduction</Text>
           <Text style={styles.paragraph}>
@@ -53,7 +57,7 @@ export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyS
           </Text>
           <Text style={styles.bulletPoint}>• Provide, maintain, and improve our services</Text>
           <Text style={styles.bulletPoint}>• Create and manage your invoices</Text>
-          <Text style={styles.bulletPoint}>• Send invoice emails to your customers</Text>
+          <Text style={styles.bulletPoint}>• Help you draft invoice and receipt emails</Text>
           <Text style={styles.bulletPoint}>• Authenticate your account and ensure security</Text>
           <Text style={styles.bulletPoint}>• Respond to your comments and questions</Text>
 
@@ -62,9 +66,9 @@ export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyS
             Your data is stored securely using Supabase, a secure cloud database platform. We implement appropriate technical and organizational measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction.
           </Text>
 
-          <Text style={styles.sectionTitle}>5. Email Services</Text>
+          <Text style={styles.sectionTitle}>5. Email Sending</Text>
           <Text style={styles.paragraph}>
-            We use Resend, a third-party email service provider, to send invoice emails on your behalf. When you send an invoice, your customer's email address and invoice details are transmitted to Resend for delivery.
+            When you choose to email an invoice or receipt, Swift Invoice opens your device's email application with a pre-filled draft. Emails are sent by your email provider from your device, not by Swift Invoice servers.
           </Text>
 
           <Text style={styles.sectionTitle}>6. Data Retention</Text>
@@ -104,10 +108,10 @@ export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyS
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
   },
   header: {
     flexDirection: 'row',
@@ -115,19 +119,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: theme.colors.border,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
   },
   closeButton: {
     padding: 8,
   },
   closeButtonText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   content: {
@@ -138,26 +142,26 @@ const styles = StyleSheet.create({
   },
   lastUpdated: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginBottom: 24,
     fontStyle: 'italic',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
     marginTop: 24,
     marginBottom: 12,
   },
   paragraph: {
     fontSize: 15,
-    color: '#333',
+    color: theme.colors.text,
     lineHeight: 22,
     marginBottom: 12,
   },
   bulletPoint: {
     fontSize: 15,
-    color: '#333',
+    color: theme.colors.text,
     lineHeight: 22,
     marginBottom: 8,
     paddingLeft: 8,

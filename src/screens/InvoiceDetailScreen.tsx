@@ -7,58 +7,177 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  Share,
   Modal,
   TextInput,
   Platform,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { invoiceService } from '../services/invoice';
 import { paymentService } from '../services/payment';
-import { sendInvoiceEmail } from '../services/email';
+import { sendInvoiceEmail, sendReceiptEmail } from '../services/email';
 import { supabase } from '../services/supabase';
-import { Invoice } from '../types';
+import { DEFAULT_TEMPLATE_SETTINGS, resolveTemplateSettings } from '../services/templateSettings';
+import {
+  BusinessPaymentMethod,
+  Invoice,
+  InvoiceTemplate,
+  InvoiceTemplateSettings,
+} from '../types';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface InvoiceDetailScreenProps {
   navigation: any;
   route: any;
 }
 
+const hexToRgba = (hexColor: string, alpha: number) => {
+  const sanitized = hexColor.replace('#', '');
+  if (!/^[0-9A-Fa-f]{6}$/.test(sanitized)) {
+    return `rgba(59,130,246,${alpha})`;
+  }
+  const r = parseInt(sanitized.substring(0, 2), 16);
+  const g = parseInt(sanitized.substring(2, 4), 16);
+  const b = parseInt(sanitized.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+
+const getPreviewPalette = (
+  template: InvoiceTemplate | undefined,
+  templateSettings: InvoiceTemplateSettings,
+  theme: any
+) => {
+  switch (template) {
+    case 'painter':
+      return {
+        accent: templateSettings.accent_color,
+        headerBackground: '#FFF4EA',
+        sectionLabel: '#8A4A1A',
+      };
+    case 'minimal':
+      return {
+        accent: templateSettings.accent_color,
+        headerBackground: '#F8FAFC',
+        sectionLabel: '#4B5563',
+      };
+    case 'classic':
+    default:
+      return {
+        accent: templateSettings.accent_color,
+        headerBackground: hexToRgba(templateSettings.accent_color, 0.08),
+        sectionLabel: theme.colors.textSecondary,
+      };
+  }
+};
+
+const getReadableAccent = (accent: string, theme: any, isDark: boolean) => {
+  if (!isDark) return accent;
+  const sanitized = accent.replace('#', '');
+  if (!/^[0-9A-Fa-f]{6}$/.test(sanitized)) return theme.colors.primary;
+  const r = parseInt(sanitized.substring(0, 2), 16) / 255;
+  const g = parseInt(sanitized.substring(2, 4), 16) / 255;
+  const b = parseInt(sanitized.substring(4, 6), 16) / 255;
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance < 0.45 ? '#93C5FD' : accent;
+};
+
+const normalizePaymentMethods = (raw: unknown): BusinessPaymentMethod[] => {
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((entry) => ({
+      type: String((entry as any)?.type || '').trim(),
+      label: String((entry as any)?.label || '').trim(),
+      value: String((entry as any)?.value || '').trim(),
+    }))
+    .filter((entry) => entry.label.length > 0 && entry.value.length > 0) as BusinessPaymentMethod[];
+};
+
+const formatPaymentMethodsForPreview = (methods: BusinessPaymentMethod[]) =>
+  methods.map((method) => `${method.label}: ${method.value}`).join('\n');
+
 export default function InvoiceDetailScreen({
   navigation,
   route,
 }: InvoiceDetailScreenProps) {
+  const { theme, isDark } = useTheme();
+  const styles = createStyles(theme);
   const { invoiceId } = route.params;
   const insets = useSafeAreaInsets();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
-  const [generatingLink, setGeneratingLink] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [sendingReceipt, setSendingReceipt] = useState(false);
   const [showVoidModal, setShowVoidModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [voidReason, setVoidReason] = useState('');
   const [businessName, setBusinessName] = useState('Swift Invoice');
+  const [businessAddress, setBusinessAddress] = useState<string | null>(null);
+  const [businessPhone, setBusinessPhone] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplate>('classic');
+  const [templateSettings, setTemplateSettings] =
+    useState<InvoiceTemplateSettings>(DEFAULT_TEMPLATE_SETTINGS);
   const [paymentInstructions, setPaymentInstructions] = useState<string | null>(null);
+  const previewPalette = getPreviewPalette(invoiceTemplate, templateSettings, theme);
+  const highlightedTotalColor = getReadableAccent(previewPalette.accent, theme, isDark);
 
   useEffect(() => {
     loadInvoice();
     loadProfileData();
   }, []);
 
+  const fetchProfileBranding = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select(
+        'business_name, business_address, business_phone, payment_instructions, payment_methods, logo_url, invoice_template, template_settings'
+      )
+      .eq('id', user.id)
+      .single();
+
+    if (!profile) return null;
+
+    return {
+      business_name: profile.business_name,
+      business_address: profile.business_address,
+      business_phone: profile.business_phone,
+      payment_instructions: profile.payment_instructions,
+      payment_methods: normalizePaymentMethods(profile.payment_methods),
+      logo_url: profile.logo_url,
+      invoice_template: profile.invoice_template,
+      template_settings: resolveTemplateSettings(
+        profile.template_settings,
+        profile.invoice_template
+      ),
+    };
+  };
+
   const loadProfileData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('business_name, payment_instructions')
-        .eq('id', user.id)
-        .single();
+      const profile = await fetchProfileBranding();
 
       if (profile) {
+        const methodsPreview = formatPaymentMethodsForPreview(profile.payment_methods || []);
+        const paymentPreviewText =
+          methodsPreview && profile.payment_instructions
+            ? `${methodsPreview}\n\n${profile.payment_instructions}`
+            : methodsPreview || profile.payment_instructions || null;
+
         setBusinessName(profile.business_name || 'Swift Invoice');
-        setPaymentInstructions(profile.payment_instructions);
+        setBusinessAddress(profile.business_address || null);
+        setBusinessPhone(profile.business_phone || null);
+        setPaymentInstructions(paymentPreviewText);
+        setLogoUrl(profile.logo_url || null);
+        setInvoiceTemplate(profile.invoice_template || 'classic');
+        setTemplateSettings(
+          resolveTemplateSettings(profile.template_settings, profile.invoice_template)
+        );
       }
     } catch (error: any) {
       console.error('Error loading profile:', error);
@@ -76,36 +195,6 @@ export default function InvoiceDetailScreen({
     }
   };
 
-  const handleGeneratePaymentLink = async () => {
-    if (!invoice) return;
-
-    setGeneratingLink(true);
-    try {
-      const paymentLink = await paymentService.createPaymentLink(invoice.id);
-      setInvoice({ ...invoice, stripe_payment_link: paymentLink });
-      Alert.alert('Success', 'Payment link generated!');
-    } catch (error: any) {
-      Alert.alert('Error', error.message);
-    } finally {
-      setGeneratingLink(false);
-    }
-  };
-
-  const handleSharePaymentLink = async () => {
-    if (!invoice?.stripe_payment_link) return;
-
-    try {
-      const message = `Pay Invoice ${invoice.invoice_number} ($${invoice.total}): ${invoice.stripe_payment_link}`;
-      
-      await Share.share({
-        message,
-        title: `Invoice ${invoice.invoice_number}`,
-      });
-    } catch (error: any) {
-      Alert.alert('Error', error.message);
-    }
-  };
-
   const handleMarkAsPaid = async () => {
     if (!invoice) return;
 
@@ -119,9 +208,56 @@ export default function InvoiceDetailScreen({
           style: 'default',
           onPress: async () => {
             try {
+              const paidAt = new Date().toISOString();
               await invoiceService.updateInvoiceStatus(invoice.id, 'paid');
-              loadInvoice();
-              Alert.alert('Success', 'Invoice marked as paid');
+              await paymentService.recordManualPayment(invoice.id, invoice.total, paidAt);
+
+              await loadInvoice();
+
+              const customer = invoice.customer;
+              if (!customer?.email) {
+                Alert.alert('Success', 'Invoice marked as paid.');
+                return;
+              }
+
+              Alert.alert('Paid', 'Invoice marked as paid. Email a receipt now?', [
+                { text: 'Not now', style: 'cancel' },
+                {
+                  text: 'Email Receipt',
+                  onPress: async () => {
+                    setSendingReceipt(true);
+                    try {
+                      const profile = await fetchProfileBranding();
+                      const receiptResult = await sendReceiptEmail({
+                        invoice: { ...invoice, status: 'paid', paid_at: paidAt },
+                        items: invoice.items || [],
+                        customer,
+                        paidAt,
+                        paymentMethodLabel: 'Manual Payment',
+                        receiptReference: invoice.invoice_number,
+                        businessName: profile?.business_name || businessName,
+                        businessAddress: profile?.business_address || businessAddress || undefined,
+                        businessPhone: profile?.business_phone || businessPhone || undefined,
+                        logoUrl: profile?.logo_url || logoUrl || undefined,
+                        invoiceTemplate: (profile?.invoice_template || invoiceTemplate) as InvoiceTemplate,
+                        templateSettings: profile?.template_settings || templateSettings,
+                      });
+
+                      if (receiptResult.success) {
+                        Alert.alert('Receipt', 'Receipt draft opened in your email app.');
+                      } else if (receiptResult.status === 'cancelled') {
+                        // User backed out of the composer; nothing to do.
+                      } else {
+                        Alert.alert('Receipt Failed', receiptResult.error || 'Unable to open email app.');
+                      }
+                    } catch (error: any) {
+                      Alert.alert('Receipt Failed', error.message);
+                    } finally {
+                      setSendingReceipt(false);
+                    }
+                  },
+                },
+              ]);
             } catch (error: any) {
               Alert.alert('Error', error.message);
             }
@@ -176,40 +312,112 @@ export default function InvoiceDetailScreen({
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Send',
+          text: 'Open Email',
           onPress: async () => {
             setSendingEmail(true);
             try {
-              // Load user profile to get payment_instructions
-              const { data: { user } } = await supabase.auth.getUser();
-              if (!user) throw new Error('Not authenticated');
-
-              const { data: profile } = await supabase
-                .from('profiles')
-                .select('payment_instructions')
-                .eq('id', user.id)
-                .single();
+              const profile = await fetchProfileBranding();
 
               const result = await sendInvoiceEmail({
                 invoice,
                 items: invoice.items || [],
                 customer: invoice.customer!,
-                paymentLink: invoice.stripe_payment_link,
+                paymentMethods: profile?.payment_methods,
                 paymentInstructions: profile?.payment_instructions,
+                businessName: profile?.business_name,
+                businessAddress: profile?.business_address,
+                businessPhone: profile?.business_phone,
+                logoUrl: profile?.logo_url,
+                invoiceTemplate: profile?.invoice_template,
+                templateSettings: profile?.template_settings,
               });
 
               if (result.success) {
-                // Update invoice status to 'sent'
-                await invoiceService.updateInvoiceStatus(invoice.id, 'sent');
-                loadInvoice();
-                Alert.alert('Success', 'Invoice email sent successfully!');
+                Alert.alert(
+                  'Email Draft Opened',
+                  'Your email app opened with the invoice draft. Mark this invoice as sent?',
+                  [
+                    { text: 'Not yet', style: 'cancel' },
+                    {
+                      text: 'Mark as Sent',
+                      onPress: async () => {
+                        try {
+                          await invoiceService.updateInvoiceStatus(invoice.id, 'sent');
+                          await loadInvoice();
+                        } catch (error: any) {
+                          Alert.alert('Error', error.message);
+                        }
+                      },
+                    },
+                  ]
+                );
+              } else if (result.status === 'cancelled') {
+                // User backed out of the composer; nothing to do.
               } else {
-                Alert.alert('Error', result.error || 'Failed to send email');
+                Alert.alert('Error', result.error || 'Unable to open email app.');
               }
             } catch (error: any) {
               Alert.alert('Error', error.message);
             } finally {
               setSendingEmail(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSendReceipt = async () => {
+    if (!invoice) return;
+
+    if (!invoice.customer?.email) {
+      Alert.alert('Error', 'Customer email is required to send receipt.');
+      return;
+    }
+
+    if (invoice.status !== 'paid') {
+      Alert.alert('Not Paid Yet', 'Receipt can only be sent for paid invoices.');
+      return;
+    }
+
+    Alert.alert(
+      'Send Receipt',
+      `Send payment receipt for invoice #${invoice.invoice_number} to ${invoice.customer.email}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Open Email',
+          onPress: async () => {
+            setSendingReceipt(true);
+            try {
+              const profile = await fetchProfileBranding();
+              const latestPayment = await paymentService.getPaymentStatus(invoice.id);
+              const result = await sendReceiptEmail({
+                invoice,
+                items: invoice.items || [],
+                customer: invoice.customer!,
+                paidAt: latestPayment?.paid_at || invoice.paid_at,
+                paymentMethodLabel: 'Manual Payment',
+                receiptReference: invoice.invoice_number,
+                businessName: profile?.business_name || businessName,
+                businessAddress: profile?.business_address || businessAddress || undefined,
+                businessPhone: profile?.business_phone || businessPhone || undefined,
+                logoUrl: profile?.logo_url || logoUrl || undefined,
+                invoiceTemplate: (profile?.invoice_template || invoiceTemplate) as InvoiceTemplate,
+                templateSettings: profile?.template_settings || templateSettings,
+              });
+
+              if (result.success) {
+                Alert.alert('Receipt', 'Receipt draft opened in your email app.');
+              } else if (result.status === 'cancelled') {
+                // User backed out of the composer; nothing to do.
+              } else {
+                Alert.alert('Error', result.error || 'Unable to open email app.');
+              }
+            } catch (error: any) {
+              Alert.alert('Error', error.message);
+            } finally {
+              setSendingReceipt(false);
             }
           },
         },
@@ -254,7 +462,7 @@ export default function InvoiceDetailScreen({
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
@@ -271,15 +479,54 @@ export default function InvoiceDetailScreen({
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.invoiceNumber}>{invoice.invoice_number}</Text>
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getStatusColor(invoice.status) },
-            ]}
-          >
-            <Text style={styles.statusText}>{getStatusLabel(invoice.status).toUpperCase()}</Text>
+        <View style={styles.headerCard}>
+          <View style={styles.headerTopRow}>
+            <View>
+              <Text style={styles.headerEyebrow}>Invoice</Text>
+              <Text style={styles.invoiceNumber}>{invoice.invoice_number}</Text>
+            </View>
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: getStatusColor(invoice.status) },
+              ]}
+            >
+              <Text style={styles.statusText}>{getStatusLabel(invoice.status).toUpperCase()}</Text>
+            </View>
+          </View>
+
+          <View style={styles.headerMetaRow}>
+            <View style={styles.headerMetaItem}>
+              <Text style={styles.headerMetaLabel}>Issue</Text>
+              <Text style={styles.headerMetaValue}>{formatDate(invoice.issue_date)}</Text>
+            </View>
+            <View style={styles.headerMetaItem}>
+              <Text style={styles.headerMetaLabel}>Due</Text>
+              <Text style={styles.headerMetaValue}>{formatDate(invoice.due_date)}</Text>
+            </View>
+            <View style={styles.headerMetaItem}>
+              <Text style={styles.headerMetaLabel}>Amount</Text>
+              <Text style={styles.headerMetaValue}>{formatCurrency(invoice.total)}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Business Branding */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>From</Text>
+          <View style={styles.brandingRow}>
+            {templateSettings.show_logo && logoUrl ? (
+              <Image source={{ uri: logoUrl }} style={styles.brandingLogo} resizeMode="contain" />
+            ) : null}
+            <View style={styles.brandingTextBlock}>
+              <Text style={styles.brandingBusinessName}>{businessName}</Text>
+              {templateSettings.show_business_contact && !!businessPhone ? (
+                <Text style={styles.brandingBusinessDetail}>{businessPhone}</Text>
+              ) : null}
+              {templateSettings.show_business_contact && !!businessAddress ? (
+                <Text style={styles.brandingBusinessDetail}>{businessAddress}</Text>
+              ) : null}
+            </View>
           </View>
         </View>
 
@@ -306,18 +553,6 @@ export default function InvoiceDetailScreen({
           {invoice.customer?.phone && (
             <Text style={styles.customerDetail}>{invoice.customer.phone}</Text>
           )}
-        </View>
-
-        {/* Dates */}
-        <View style={styles.section}>
-          <View style={styles.dateRow}>
-            <Text style={styles.dateLabel}>Issue Date:</Text>
-            <Text style={styles.dateValue}>{formatDate(invoice.issue_date)}</Text>
-          </View>
-          <View style={styles.dateRow}>
-            <Text style={styles.dateLabel}>Due Date:</Text>
-            <Text style={styles.dateValue}>{formatDate(invoice.due_date)}</Text>
-          </View>
         </View>
 
         {/* Items */}
@@ -350,15 +585,43 @@ export default function InvoiceDetailScreen({
           )}
           <View style={[styles.totalRow, styles.grandTotalRow]}>
             <Text style={styles.grandTotalLabel}>Total</Text>
-            <Text style={styles.grandTotalValue}>{formatCurrency(invoice.total)}</Text>
+            <Text
+              style={[
+                styles.grandTotalValue,
+                {
+                  color: templateSettings.highlight_totals
+                    ? highlightedTotalColor
+                    : theme.colors.text,
+                },
+              ]}
+            >
+              {formatCurrency(invoice.total)}
+            </Text>
           </View>
         </View>
 
         {/* Notes */}
-        {invoice.notes && (
+        {templateSettings.show_notes && invoice.notes && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Notes</Text>
             <Text style={styles.notesText}>{invoice.notes}</Text>
+          </View>
+        )}
+
+        {/* Receipt Actions */}
+        {invoice.status === 'paid' && (
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={[styles.receiptButton, sendingReceipt && styles.buttonDisabled]}
+              onPress={handleSendReceipt}
+              disabled={sendingReceipt}
+            >
+              {sendingReceipt ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.receiptButtonText}>Send Receipt Email</Text>
+              )}
+            </TouchableOpacity>
           </View>
         )}
 
@@ -369,7 +632,7 @@ export default function InvoiceDetailScreen({
               style={styles.previewButton}
               onPress={() => setShowPreviewModal(true)}
             >
-              <Text style={styles.previewButtonText}>📄 Preview Invoice</Text>
+              <Text style={styles.previewButtonText}>Preview Invoice</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -401,23 +664,69 @@ export default function InvoiceDetailScreen({
       >
         <View style={styles.previewContainer}>
           <View style={styles.previewHeader}>
-            <TouchableOpacity onPress={() => setShowPreviewModal(false)}>
-              <Text style={styles.previewCloseButton}>✕</Text>
+            <TouchableOpacity
+              onPress={() => setShowPreviewModal(false)}
+              style={styles.previewBackButton}
+            >
+              <Text style={styles.previewBackButtonText}>← Back</Text>
             </TouchableOpacity>
             <Text style={styles.previewTitle}>Invoice Preview</Text>
-            <View style={{ width: 40 }} />
+            <View style={styles.previewHeaderSpacer} />
           </View>
           
           <ScrollView style={styles.previewScroll} contentContainerStyle={styles.previewContent}>
             {/* Invoice Header */}
-            <View style={styles.previewInvoiceHeader}>
-              <Text style={styles.previewBusinessName}>{businessName}</Text>
-              <Text style={styles.previewInvoiceNumber}>{invoice.invoice_number}</Text>
+            <View
+              style={[
+                styles.previewInvoiceHeader,
+                {
+                  borderBottomColor: previewPalette.accent,
+                  backgroundColor: previewPalette.headerBackground,
+                },
+              ]}
+            >
+              {templateSettings.header_layout === 'inline' ? (
+                <View style={styles.previewInlineHeaderRow}>
+                  <View style={styles.previewInlineBusinessBlock}>
+                    {templateSettings.show_logo && logoUrl ? (
+                      <Image source={{ uri: logoUrl }} style={styles.previewInlineLogo} resizeMode="contain" />
+                    ) : null}
+                    <View style={styles.previewInlineBusinessText}>
+                      <Text style={[styles.previewInlineBusinessName, { color: previewPalette.accent }]}>
+                        {businessName}
+                      </Text>
+                      {templateSettings.show_business_contact && businessPhone ? (
+                        <Text style={styles.previewInlineBusinessDetail}>{businessPhone}</Text>
+                      ) : null}
+                      {templateSettings.show_business_contact && businessAddress ? (
+                        <Text style={styles.previewInlineBusinessDetail}>{businessAddress}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                  <Text style={styles.previewInvoiceNumber}>{invoice.invoice_number}</Text>
+                </View>
+              ) : (
+                <>
+                  {templateSettings.show_logo && logoUrl ? (
+                    <Image source={{ uri: logoUrl }} style={styles.previewLogo} resizeMode="contain" />
+                  ) : null}
+                  <Text style={[styles.previewBusinessName, { color: previewPalette.accent }]}>
+                    {businessName}
+                  </Text>
+                  {templateSettings.show_business_contact && businessPhone ? (
+                    <Text style={styles.previewBusinessDetail}>{businessPhone}</Text>
+                  ) : null}
+                  {templateSettings.show_business_contact && businessAddress ? (
+                    <Text style={styles.previewBusinessDetail}>{businessAddress}</Text>
+                  ) : null}
+                  <Text style={styles.previewInvoiceNumber}>{invoice.invoice_number}</Text>
+                </>
+              )}
             </View>
 
             {/* Customer Info */}
             <View style={styles.previewSection}>
-              <Text style={styles.previewSectionTitle}>Bill To:</Text>
+              <Text style={[styles.previewSectionTitle, { color: previewPalette.sectionLabel }]}>Bill To:</Text>
               <Text style={styles.previewCustomerName}>{invoice.customer?.name}</Text>
               {invoice.customer?.email && (
                 <Text style={styles.previewCustomerDetail}>{invoice.customer.email}</Text>
@@ -434,7 +743,7 @@ export default function InvoiceDetailScreen({
             <View style={styles.previewSection}>
               <View style={styles.previewDateRow}>
                 <Text style={styles.previewDateLabel}>Issue Date:</Text>
-                <Text style={styles.previewDateValue}>{formatDate(invoice.created_at)}</Text>
+                <Text style={styles.previewDateValue}>{formatDate(invoice.issue_date)}</Text>
               </View>
               <View style={styles.previewDateRow}>
                 <Text style={styles.previewDateLabel}>Due Date:</Text>
@@ -444,7 +753,7 @@ export default function InvoiceDetailScreen({
 
             {/* Line Items */}
             <View style={styles.previewSection}>
-              <Text style={styles.previewSectionTitle}>Items:</Text>
+              <Text style={[styles.previewSectionTitle, { color: previewPalette.sectionLabel }]}>Items:</Text>
               {invoice.items?.map((item, index) => (
                 <View key={index} style={styles.previewItemRow}>
                   <View style={styles.previewItemLeft}>
@@ -472,14 +781,25 @@ export default function InvoiceDetailScreen({
               )}
               <View style={[styles.previewTotalRow, styles.previewFinalTotal]}>
                 <Text style={styles.previewFinalLabel}>Total:</Text>
-                <Text style={styles.previewFinalValue}>{formatCurrency(invoice.total)}</Text>
+                <Text
+                  style={[
+                    styles.previewFinalValue,
+                    {
+                      color: templateSettings.highlight_totals
+                        ? highlightedTotalColor
+                        : theme.colors.text,
+                    },
+                  ]}
+                >
+                  {formatCurrency(invoice.total)}
+                </Text>
               </View>
             </View>
 
             {/* Notes */}
-            {invoice.notes && (
+            {templateSettings.show_notes && invoice.notes && (
               <View style={styles.previewSection}>
-                <Text style={styles.previewSectionTitle}>Notes:</Text>
+                <Text style={[styles.previewSectionTitle, { color: previewPalette.sectionLabel }]}>Notes:</Text>
                 <Text style={styles.previewNotes}>{invoice.notes}</Text>
               </View>
             )}
@@ -487,7 +807,7 @@ export default function InvoiceDetailScreen({
             {/* Payment Instructions */}
             {paymentInstructions && (
               <View style={styles.previewSection}>
-                <Text style={styles.previewSectionTitle}>Payment Methods:</Text>
+                <Text style={[styles.previewSectionTitle, { color: previewPalette.sectionLabel }]}>Payment Methods:</Text>
                 <View style={styles.paymentInstructionsBox}>
                   <Text style={styles.paymentInstructionsText}>{paymentInstructions}</Text>
                 </View>
@@ -498,7 +818,11 @@ export default function InvoiceDetailScreen({
           {/* Send Email Button */}
           <View style={[styles.previewActions, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
             <TouchableOpacity
-              style={[styles.sendEmailButton, { flex: 0, width: '100%' }, sendingEmail && styles.buttonDisabled]}
+              style={[
+                styles.sendEmailButton,
+                { flex: 0, width: '100%', backgroundColor: previewPalette.accent },
+                sendingEmail && styles.buttonDisabled,
+              ]}
               onPress={() => {
                 setShowPreviewModal(false);
                 handleSendEmail();
@@ -508,7 +832,7 @@ export default function InvoiceDetailScreen({
               {sendingEmail ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.sendEmailButtonText}>📧 Send Invoice Email</Text>
+                <Text style={styles.sendEmailButtonText}>Send Invoice Email</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -531,7 +855,7 @@ export default function InvoiceDetailScreen({
             <TextInput
               style={styles.modalInput}
               placeholder="Enter void reason..."
-              placeholderTextColor="#999"
+              placeholderTextColor={theme.colors.placeholder}
               value={voidReason}
               onChangeText={setVoidReason}
               multiline
@@ -562,10 +886,10 @@ export default function InvoiceDetailScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
   loadingContainer: {
     flex: 1,
@@ -579,103 +903,163 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#666',
+    color: theme.colors.textSecondary,
   },
   scrollView: {
     flex: 1,
   },
   content: {
-    padding: 12,
+    padding: 16,
     paddingBottom: 100,
   },
-  header: {
+  headerCard: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+    elevation: 1,
+    shadowColor: theme.colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+  },
+  headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
+  },
+  headerEyebrow: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 2,
   },
   invoiceNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 24,
+    fontWeight: '700',
+    color: theme.colors.text,
   },
   statusBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 5,
+    borderRadius: 999,
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '700',
     color: '#fff',
   },
+  headerMetaRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  headerMetaItem: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  headerMetaLabel: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    marginBottom: 3,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  headerMetaValue: {
+    fontSize: 12,
+    color: theme.colors.text,
+    fontWeight: '600',
+  },
   section: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 10,
+    backgroundColor: theme.colors.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: 14,
+    marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
+    color: theme.colors.textSecondary,
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.45,
+  },
+  brandingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  brandingLogo: {
+    width: 72,
+    height: 40,
+    borderRadius: 6,
+  },
+  brandingBusinessName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginBottom: 2,
+  },
+  brandingTextBlock: {
+    flex: 1,
+  },
+  brandingBusinessDetail: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
   },
   customerName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: '700',
+    color: theme.colors.text,
     marginBottom: 4,
   },
   customerDetail: {
     fontSize: 13,
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginBottom: 2,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  dateLabel: {
-    fontSize: 13,
-    color: '#666',
-  },
-  dateValue: {
-    fontSize: 13,
-    color: '#333',
-    fontWeight: '500',
   },
   itemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
-    paddingBottom: 8,
+    marginBottom: 10,
+    paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: theme.colors.border,
   },
   itemDescription: {
     flex: 1,
   },
   itemText: {
-    fontSize: 13,
-    color: '#333',
-    marginBottom: 3,
+    fontSize: 14,
+    color: theme.colors.text,
+    marginBottom: 4,
   },
   itemSubtext: {
-    fontSize: 11,
-    color: '#999',
+    fontSize: 12,
+    color: theme.colors.placeholder,
   },
   itemAmount: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
   },
   totalsSection: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 10,
+    backgroundColor: theme.colors.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: 14,
+    marginBottom: 12,
   },
   totalRow: {
     flexDirection: 'row',
@@ -684,79 +1068,54 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.textSecondary,
   },
   totalValue: {
     fontSize: 14,
-    color: '#333',
+    color: theme.colors.text,
     fontWeight: '500',
   },
   grandTotalRow: {
-    borderTopWidth: 2,
-    borderTopColor: '#e0e0e0',
-    paddingTop: 12,
-    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    paddingTop: 14,
+    marginTop: 8,
     marginBottom: 0,
   },
   grandTotalLabel: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 17,
+    fontWeight: '700',
+    color: theme.colors.text,
   },
   grandTotalValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#007AFF',
+    fontSize: 23,
+    fontWeight: '700',
+    color: theme.colors.primary,
   },
   notesText: {
     fontSize: 13,
-    color: '#666',
+    color: theme.colors.textSecondary,
     lineHeight: 18,
-  },
-  paymentLink: {
-    fontSize: 12,
-    color: '#007AFF',
-    marginBottom: 12,
-    padding: 8,
-    backgroundColor: '#f0f8ff',
-    borderRadius: 6,
-  },
-  generateButton: {
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  generateButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  shareButton: {
-    flex: 1,
-    backgroundColor: '#4CAF50',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  shareButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  actionButtonsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
   },
   sendEmailButton: {
     flex: 1,
-    backgroundColor: '#3b82f6',
+    backgroundColor: theme.colors.info,
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
   },
   sendEmailButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  receiptButton: {
+    backgroundColor: theme.colors.success,
+    padding: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  receiptButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
@@ -769,15 +1128,15 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 16,
     paddingBottom: 48,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: theme.colors.border,
   },
   voidButton: {
     flex: 1,
-    backgroundColor: '#F44336',
+    backgroundColor: theme.colors.error,
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
   },
   voidButtonText: {
@@ -787,9 +1146,9 @@ const styles = StyleSheet.create({
   },
   markPaidButton: {
     flex: 1,
-    backgroundColor: '#4CAF50',
+    backgroundColor: theme.colors.success,
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
   },
   markPaidButtonText: {
@@ -798,38 +1157,38 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   voidNotice: {
-    backgroundColor: '#FFF3CD',
-    borderWidth: 2,
-    borderColor: '#856404',
-    borderRadius: 8,
+    backgroundColor: `${theme.colors.warning}20`,
+    borderWidth: 1,
+    borderColor: `${theme.colors.warning}66`,
+    borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   voidTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#856404',
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.warning,
     marginBottom: 8,
   },
   voidReason: {
     fontSize: 14,
-    color: '#856404',
+    color: theme.colors.text,
     marginBottom: 4,
   },
   voidDate: {
     fontSize: 12,
-    color: '#856404',
+    color: theme.colors.textSecondary,
     fontStyle: 'italic',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: theme.colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 24,
     width: '100%',
@@ -838,21 +1197,22 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: theme.colors.text,
     marginBottom: 12,
   },
   modalDescription: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginBottom: 16,
   },
   modalInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: theme.colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    color: '#333',
+    color: theme.colors.text,
+    backgroundColor: theme.colors.inputBackground,
     minHeight: 80,
     textAlignVertical: 'top',
     marginBottom: 20,
@@ -868,17 +1228,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalButtonCancel: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: theme.colors.border,
   },
   modalButtonCancelText: {
-    color: '#666',
+    color: theme.colors.textSecondary,
     fontSize: 16,
     fontWeight: '600',
   },
   modalButtonVoid: {
-    backgroundColor: '#F44336',
+    backgroundColor: theme.colors.error,
   },
   modalButtonVoidText: {
     color: '#fff',
@@ -886,9 +1246,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   previewButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.primary,
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
   },
   previewButtonText: {
@@ -898,8 +1258,8 @@ const styles = StyleSheet.create({
   },
   previewContainer: {
     flex: 1,
-    backgroundColor: '#fff',
-    marginBottom: 0, // Back to full screen now that button is visible
+    backgroundColor: theme.colors.background,
+    marginBottom: 0,
   },
   previewHeader: {
     flexDirection: 'row',
@@ -907,64 +1267,116 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: '#fff',
+    borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
   },
-  previewCloseButton: {
-    fontSize: 28,
-    color: '#666',
-    fontWeight: '300',
-    width: 40,
+  previewBackButton: {
+    minWidth: 64,
+  },
+  previewBackButtonText: {
+    fontSize: 16,
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
   previewTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
+  },
+  previewHeaderSpacer: {
+    width: 64,
   },
   previewScroll: {
     flex: 1,
   },
   previewContent: {
     padding: 20,
-    paddingBottom: 100, // Space for bottom button
+    paddingBottom: 100,
   },
   previewInvoiceHeader: {
     alignItems: 'center',
-    marginBottom: 32,
-    paddingBottom: 24,
+    marginBottom: 24,
+    paddingBottom: 20,
     borderBottomWidth: 2,
-    borderBottomColor: '#007AFF',
+    borderBottomColor: theme.colors.primary,
+    borderRadius: 12,
+    paddingTop: 18,
+    paddingHorizontal: 12,
+  },
+  previewLogo: {
+    width: 180,
+    height: 70,
+    marginBottom: 12,
   },
   previewBusinessName: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: theme.colors.primary,
     marginBottom: 8,
+  },
+  previewBusinessDetail: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginBottom: 4,
   },
   previewInvoiceNumber: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
+  },
+  previewInlineHeaderRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  previewInlineBusinessBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+  },
+  previewInlineLogo: {
+    width: 72,
+    height: 40,
+  },
+  previewInlineBusinessText: {
+    flex: 1,
+  },
+  previewInlineBusinessName: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  previewInlineBusinessDetail: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    marginTop: 1,
   },
   previewSection: {
-    marginBottom: 24,
+    marginBottom: 18,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    padding: 14,
   },
   previewSectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#666',
+    color: theme.colors.textSecondary,
     textTransform: 'uppercase',
     marginBottom: 12,
   },
   previewCustomerName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
     marginBottom: 4,
   },
   previewCustomerDetail: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginBottom: 2,
   },
   previewDateRow: {
@@ -974,11 +1386,11 @@ const styles = StyleSheet.create({
   },
   previewDateLabel: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.textSecondary,
   },
   previewDateValue: {
     fontSize: 14,
-    color: '#333',
+    color: theme.colors.text,
     fontWeight: '500',
   },
   previewItemRow: {
@@ -986,25 +1398,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: theme.colors.border,
   },
   previewItemLeft: {
     flex: 1,
   },
   previewItemDescription: {
     fontSize: 15,
-    color: '#333',
+    color: theme.colors.text,
     fontWeight: '500',
     marginBottom: 4,
   },
   previewItemQuantity: {
     fontSize: 13,
-    color: '#666',
+    color: theme.colors.textSecondary,
   },
   previewItemAmount: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
   },
   previewTotalRow: {
     flexDirection: 'row',
@@ -1013,52 +1425,52 @@ const styles = StyleSheet.create({
   },
   previewTotalLabel: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.textSecondary,
   },
   previewTotalValue: {
     fontSize: 14,
-    color: '#333',
+    color: theme.colors.text,
     fontWeight: '500',
   },
   previewFinalTotal: {
     marginTop: 8,
     paddingTop: 12,
-    borderTopWidth: 2,
-    borderTopColor: '#333',
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
   },
   previewFinalLabel: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: theme.colors.text,
   },
   previewFinalValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: theme.colors.primary,
   },
   previewNotes: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.textSecondary,
     lineHeight: 20,
   },
   paymentInstructionsBox: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 16,
+    borderColor: theme.colors.border,
+    borderRadius: 10,
+    padding: 12,
   },
   paymentInstructionsText: {
     fontSize: 14,
-    color: '#333',
+    color: theme.colors.text,
     lineHeight: 20,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   previewActions: {
     padding: 16,
-    paddingBottom: 16, // Dynamic padding applied inline
-    backgroundColor: '#fff',
+    paddingBottom: 16,
+    backgroundColor: theme.colors.card,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: theme.colors.border,
   },
 });

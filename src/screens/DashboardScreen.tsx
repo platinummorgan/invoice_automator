@@ -3,6 +3,7 @@ import {
   View,
   Text,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
@@ -12,12 +13,31 @@ import {
 import { invoiceService } from '../services/invoice';
 import { subscriptionService } from '../services/subscription';
 import { Invoice } from '../types';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface DashboardScreenProps {
   navigation: any;
 }
 
+const DATE_RANGE_OPTIONS: Array<{ key: 'all' | 'month' | 'lastMonth' | 'year'; label: string }> = [
+  { key: 'all', label: 'All Time' },
+  { key: 'month', label: 'This Month' },
+  { key: 'lastMonth', label: 'Last Month' },
+  { key: 'year', label: 'This Year' },
+];
+
+const STATUS_FILTER_OPTIONS: Array<{ key: 'all' | 'paid' | 'unpaid' | 'voided'; label: string }> = [
+  { key: 'all', label: 'All' },
+  { key: 'paid', label: 'Paid' },
+  { key: 'unpaid', label: 'Unpaid' },
+  { key: 'voided', label: 'Voided' },
+];
+
+const withOpacity = (hexColor: string, opacity: string) => `${hexColor}${opacity}`;
+
 export default function DashboardScreen({ navigation }: DashboardScreenProps) {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -89,8 +109,11 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
     try {
       const status = await subscriptionService.getSubscriptionStatus();
       setSubscriptionStatus(status);
-    } catch (error) {
-      console.error('Error loading subscription:', error);
+    } catch (error: any) {
+      // Ignore "no rows" errors (user doesn't have subscription)
+      if (error?.code !== 'PGRST116') {
+        console.error('Error loading subscription:', error);
+      }
     }
   };
 
@@ -102,15 +125,18 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'paid':
-        return '#4CAF50';
+        return theme.colors.success;
       case 'sent':
-        return '#2196F3';
+        return theme.colors.info;
       case 'overdue':
-        return '#F44336';
+        return theme.colors.error;
+      case 'void':
+      case 'cancelled':
+        return theme.colors.textSecondary;
       case 'draft':
-        return '#9E9E9E';
+        return theme.colors.warning;
       default:
-        return '#757575';
+        return theme.colors.textSecondary;
     }
   };
 
@@ -133,13 +159,29 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
 
   const renderInvoiceItem = ({ item }: { item: Invoice }) => (
     <TouchableOpacity
-      style={styles.invoiceCard}
+      style={[
+        styles.invoiceCard,
+        {
+          borderLeftColor: getStatusColor(item.status),
+        },
+      ]}
+      activeOpacity={0.85}
       onPress={() => navigation.navigate('InvoiceDetail', { invoiceId: item.id })}
     >
       <View style={styles.invoiceHeader}>
         <Text style={styles.invoiceNumber}>{item.invoice_number}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Text style={styles.statusText}>{getStatusLabel(item.status).toUpperCase()}</Text>
+        <View
+          style={[
+            styles.statusBadge,
+            {
+              backgroundColor: withOpacity(getStatusColor(item.status), '1A'),
+              borderColor: withOpacity(getStatusColor(item.status), '55'),
+            },
+          ]}
+        >
+          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+            {getStatusLabel(item.status).toUpperCase()}
+          </Text>
         </View>
       </View>
 
@@ -148,7 +190,7 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
       </Text>
 
       <View style={styles.invoiceFooter}>
-        <Text style={styles.invoiceDate}>Due: {formatDate(item.due_date)}</Text>
+        <Text style={styles.invoiceDate}>Due {formatDate(item.due_date)}</Text>
         <Text style={styles.invoiceAmount}>{formatCurrency(item.total)}</Text>
       </View>
     </TouchableOpacity>
@@ -157,28 +199,35 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      <View style={styles.headerBlock}>
+        <Text style={styles.headerTitle}>Invoice Overview</Text>
+        <Text style={styles.headerSubtitle}>
+          {invoices.length} invoice{invoices.length === 1 ? '' : 's'} in this view
+        </Text>
+      </View>
+
       {/* Stats Cards */}
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Total Invoices</Text>
+          <Text style={styles.statLabel}>Invoices</Text>
           <Text style={styles.statValue}>{stats.total}</Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Paid</Text>
-          <Text style={[styles.statValue, { color: '#4CAF50' }]}>
+        <View style={[styles.statCard, styles.statCardHighlighted]}>
+          <Text style={styles.statLabel}>Collected</Text>
+          <Text style={[styles.statValue, { color: theme.colors.success }]}>
             {formatCurrency(stats.paidAmount)}
           </Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Unpaid</Text>
-          <Text style={[styles.statValue, { color: '#F44336' }]}>
+          <Text style={styles.statLabel}>Outstanding</Text>
+          <Text style={[styles.statValue, { color: theme.colors.error }]}>
             {formatCurrency(stats.unpaidAmount)}
           </Text>
         </View>
@@ -204,87 +253,65 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
       )}
 
       {/* Date Range Filter */}
-      <View style={styles.dateRangeContainer}>
-        <TouchableOpacity
-          style={[styles.dateRangeButton, dateRange === 'all' && styles.dateRangeButtonActive]}
-          onPress={() => setDateRange('all')}
+      <View style={styles.filterSection}>
+        <Text style={styles.filterLabel}>Date range</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScrollContent}
         >
-          <Text style={[styles.dateRangeText, dateRange === 'all' && styles.dateRangeTextActive]}>
-            All Time
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.dateRangeButton, dateRange === 'month' && styles.dateRangeButtonActive]}
-          onPress={() => setDateRange('month')}
-        >
-          <Text style={[styles.dateRangeText, dateRange === 'month' && styles.dateRangeTextActive]}>
-            This Month
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.dateRangeButton, dateRange === 'lastMonth' && styles.dateRangeButtonActive]}
-          onPress={() => setDateRange('lastMonth')}
-        >
-          <Text style={[styles.dateRangeText, dateRange === 'lastMonth' && styles.dateRangeTextActive]}>
-            Last Month
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.dateRangeButton, dateRange === 'year' && styles.dateRangeButtonActive]}
-          onPress={() => setDateRange('year')}
-        >
-          <Text style={[styles.dateRangeText, dateRange === 'year' && styles.dateRangeTextActive]}>
-            This Year
-          </Text>
-        </TouchableOpacity>
+          {DATE_RANGE_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={option.key}
+              style={[
+                styles.dateRangeButton,
+                dateRange === option.key && styles.dateRangeButtonActive,
+              ]}
+              onPress={() => setDateRange(option.key)}
+            >
+              <Text
+                style={[
+                  styles.dateRangeText,
+                  dateRange === option.key && styles.dateRangeTextActive,
+                ]}
+              >
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       {/* Filter Tabs */}
-      <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === 'all' && styles.filterTabActive]}
-          onPress={() => setFilter('all')}
-        >
-          <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
-            All
-          </Text>
-          <Text style={[styles.filterCount, filter === 'all' && styles.filterCountActive]}>
-            ({stats.total})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === 'paid' && styles.filterTabActive]}
-          onPress={() => setFilter('paid')}
-        >
-          <Text style={[styles.filterText, filter === 'paid' && styles.filterTextActive]}>
-            Paid
-          </Text>
-          <Text style={[styles.filterCount, filter === 'paid' && styles.filterCountActive]}>
-            ({stats.paid})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === 'unpaid' && styles.filterTabActive]}
-          onPress={() => setFilter('unpaid')}
-        >
-          <Text style={[styles.filterText, filter === 'unpaid' && styles.filterTextActive]}>
-            Unpaid
-          </Text>
-          <Text style={[styles.filterCount, filter === 'unpaid' && styles.filterCountActive]}>
-            ({stats.unpaid})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === 'voided' && styles.filterTabActive]}
-          onPress={() => setFilter('voided')}
-        >
-          <Text style={[styles.filterText, filter === 'voided' && styles.filterTextActive]}>
-            Voided
-          </Text>
-          <Text style={[styles.filterCount, filter === 'voided' && styles.filterCountActive]}>
-            ({stats.voided})
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.filterSection}>
+        <Text style={styles.filterLabel}>Status</Text>
+        <View style={styles.filterContainer}>
+          {STATUS_FILTER_OPTIONS.map((option) => {
+            const countMap = {
+              all: stats.total,
+              paid: stats.paid,
+              unpaid: stats.unpaid,
+              voided: stats.voided,
+            } as const;
+
+            return (
+              <TouchableOpacity
+                key={option.key}
+                style={[styles.filterTab, filter === option.key && styles.filterTabActive]}
+                onPress={() => setFilter(option.key)}
+              >
+                <Text style={[styles.filterText, filter === option.key && styles.filterTextActive]}>
+                  {option.label}
+                </Text>
+                <Text
+                  style={[styles.filterCount, filter === option.key && styles.filterCountActive]}
+                >
+                  ({countMap[option.key]})
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
       {/* Invoice List */}
@@ -298,8 +325,9 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>📄</Text>
             <Text style={styles.emptyText}>No invoices yet</Text>
-            <Text style={styles.emptySubtext}>Create your first invoice to get started</Text>
+            <Text style={styles.emptySubtext}>Create your first invoice to get started.</Text>
           </View>
         }
       />
@@ -315,46 +343,84 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  headerBlock: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  headerSubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+  },
   statsContainer: {
     flexDirection: 'row',
     padding: 16,
-    gap: 8,
+    gap: 10,
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+    elevation: 1,
+    shadowColor: theme.colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+  },
+  statCardHighlighted: {
+    borderColor: withOpacity(theme.colors.success, '55'),
+    backgroundColor: withOpacity(theme.colors.success, theme.colors.background === '#000000' ? '1F' : '12'),
   },
   statLabel: {
-    fontSize: 11,
-    color: '#666',
-    marginBottom: 4,
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginBottom: 6,
+    textAlign: 'center',
   },
   statValue: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: theme.colors.text,
+    textAlign: 'center',
+  },
+  filterSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  filterLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 8,
+  },
+  filterScrollContent: {
+    paddingRight: 8,
   },
   filterContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
     gap: 8,
   },
   dateRangeContainer: {
@@ -365,50 +431,54 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dateRangeButton: {
-    flex: 1,
+    minWidth: 94,
     paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: '#f5f5f5',
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: theme.colors.card,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: theme.colors.border,
+    marginRight: 8,
   },
   dateRangeButtonActive: {
-    backgroundColor: '#e3f2fd',
-    borderColor: '#007AFF',
+    backgroundColor: withOpacity(theme.colors.primary, theme.colors.background === '#000000' ? '33' : '14'),
+    borderColor: theme.colors.primary,
   },
   dateRangeText: {
     fontSize: 12,
-    color: '#666',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
   },
   dateRangeTextActive: {
-    color: '#007AFF',
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   filterTab: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#fff',
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    backgroundColor: theme.colors.card,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   filterTabActive: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
   },
   filterText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    fontWeight: '600',
   },
   filterTextActive: {
     color: '#fff',
   },
   filterCount: {
     fontSize: 12,
-    color: '#999',
+    color: theme.colors.textSecondary,
     fontWeight: '400',
     marginTop: 4,
   },
@@ -417,18 +487,22 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 16,
-    paddingBottom: 80,
+    paddingTop: 6,
+    paddingBottom: 96,
   },
   invoiceCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     marginBottom: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderLeftWidth: 4,
+    elevation: 1,
+    shadowColor: theme.colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
   },
   invoiceHeader: {
     flexDirection: 'row',
@@ -439,22 +513,22 @@ const styles = StyleSheet.create({
   invoiceNumber: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: theme.colors.text,
   },
   statusBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   statusText: {
     fontSize: 10,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: '700',
   },
   customerName: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
+    fontSize: 15,
+    color: theme.colors.text,
+    marginBottom: 10,
   },
   invoiceFooter: {
     flexDirection: 'row',
@@ -463,27 +537,33 @@ const styles = StyleSheet.create({
   },
   invoiceDate: {
     fontSize: 12,
-    color: '#999',
+    color: theme.colors.textSecondary,
   },
   invoiceAmount: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 19,
+    fontWeight: '700',
+    color: theme.colors.text,
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 48,
+    paddingHorizontal: 24,
+  },
+  emptyIcon: {
+    fontSize: 36,
+    marginBottom: 12,
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: '700',
+    color: theme.colors.text,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
   fab: {
     position: 'absolute',
@@ -492,11 +572,11 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 4,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -508,15 +588,17 @@ const styles = StyleSheet.create({
   },
   proBanner: {
     marginHorizontal: 16,
-    marginTop: 12,
+    marginTop: 4,
     marginBottom: 8,
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 14,
     padding: 16,
-    elevation: 3,
-    shadowColor: '#000',
+    borderWidth: 1,
+    borderColor: withOpacity(theme.colors.primary, 'AA'),
+    elevation: 2,
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.14,
     shadowRadius: 4,
   },
   proBannerContent: {

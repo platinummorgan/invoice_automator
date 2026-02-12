@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { authService } from '../services/auth';
+import { useTheme } from '../contexts/ThemeContext';
+import { GoogleIcon } from '../components/GoogleIcon';
 
 interface SignUpScreenProps {
   navigation: any;
@@ -19,11 +21,33 @@ interface SignUpScreenProps {
 }
 
 export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScreenProps) {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleAvailable, setGoogleAvailable] = useState(true);
+
+  useEffect(() => {
+    setGoogleAvailable(authService.isGoogleSignInAvailable());
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    try {
+      await authService.signInWithGoogle();
+      onSignUpSuccess();
+    } catch (error: any) {
+      if (error.message !== 'Google sign-in was cancelled or failed') {
+        Alert.alert('Google Sign-In Failed', error.message || 'Please try again');
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleSignUp = async () => {
     if (!email || !password || !fullName) {
@@ -43,10 +67,16 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
 
     setLoading(true);
     try {
+      // Sign up the user
       await authService.signUp(email, password, fullName);
+      
+      // Automatically sign in the user after successful registration
+      await authService.signIn(email, password);
+      
+      // Show success message and navigate to app
       Alert.alert(
-        'Success',
-        'Account created! Please check your email to verify your account.',
+        'Welcome!',
+        'Account created successfully. You are now logged in.',
         [{ text: 'OK', onPress: onSignUpSuccess }]
       );
     } catch (error: any) {
@@ -70,7 +100,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
             <TextInput
               style={styles.input}
               placeholder="Full Name"
-              placeholderTextColor="#999"
+              placeholderTextColor={theme.colors.placeholder}
               value={fullName}
               onChangeText={setFullName}
               autoCapitalize="words"
@@ -80,7 +110,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
             <TextInput
               style={styles.input}
               placeholder="Email"
-              placeholderTextColor="#999"
+              placeholderTextColor={theme.colors.placeholder}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -91,7 +121,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
             <TextInput
               style={styles.input}
               placeholder="Password (min. 6 characters)"
-              placeholderTextColor="#999"
+              placeholderTextColor={theme.colors.placeholder}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -101,7 +131,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
             <TextInput
               style={styles.input}
               placeholder="Confirm Password"
-              placeholderTextColor="#999"
+              placeholderTextColor={theme.colors.placeholder}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
@@ -111,7 +141,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
             <TouchableOpacity
               style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleSignUp}
-              disabled={loading}
+              disabled={loading || googleLoading}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
@@ -120,9 +150,32 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               )}
             </TouchableOpacity>
 
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+          <TouchableOpacity
+            style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+            onPress={handleGoogleSignIn}
+            disabled={loading || googleLoading || !googleAvailable}
+          >
+            {googleLoading ? (
+              <ActivityIndicator color="#333" />
+            ) : (
+              <>
+                <GoogleIcon size={20} />
+                <Text style={styles.googleButtonText}>
+                  {googleAvailable ? 'Continue with Google' : 'Google Sign-In requires dev build'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
             <TouchableOpacity
               onPress={() => navigation.goBack()}
-              disabled={loading}
+              disabled={loading || googleLoading}
             >
               <Text style={styles.linkText}>
                 Already have an account? <Text style={styles.linkTextBold}>Login</Text>
@@ -143,10 +196,10 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -159,13 +212,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#333',
+    color: theme.colors.text,
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginBottom: 32,
     textAlign: 'center',
   },
@@ -173,16 +226,16 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   input: {
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.colors.inputBackground,
     padding: 16,
     borderRadius: 8,
     fontSize: 16,
     borderWidth: 2,
-    borderColor: '#007AFF',
-    color: '#000000',
+    borderColor: theme.colors.inputBorder,
+    color: theme.colors.text,
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.primary,
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
@@ -198,22 +251,58 @@ const styles = StyleSheet.create({
   },
   linkText: {
     textAlign: 'center',
-    color: '#666',
+    color: theme.colors.textSecondary,
     marginTop: 16,
   },
   linkTextBold: {
-    color: '#007AFF',
+    color: theme.colors.primary,
     fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.border,
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    color: theme.colors.textSecondary,
+    fontSize: 14,
+  },
+  googleButton: {
+    backgroundColor: theme.colors.card,
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 12,
+  },
+  googleButtonText: {
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  googleIcon: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
   },
   terms: {
     marginTop: 24,
     padding: 16,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: theme.colors.card,
     borderRadius: 8,
   },
   termsText: {
     fontSize: 12,
-    color: '#666',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
   },

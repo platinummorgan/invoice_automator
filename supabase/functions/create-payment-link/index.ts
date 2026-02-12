@@ -14,7 +14,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -30,11 +30,46 @@ serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    const authHeader = req.headers.get('authorization');
 
-    // Get invoice details
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate caller identity from Supabase JWT
+    const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        apikey: supabaseAnonKey || supabaseKey,
+        Authorization: authHeader,
+      },
+    });
+
+    if (!userResponse.ok) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const user = await userResponse.json();
+    const userId = user?.id;
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get invoice details scoped to the authenticated user.
     const invoiceResponse = await fetch(
-      `${supabaseUrl}/rest/v1/invoices?id=eq.${invoiceId}&select=*,customer:customers(*)`,
+      `${supabaseUrl}/rest/v1/invoices?id=eq.${encodeURIComponent(
+        invoiceId
+      )}&user_id=eq.${encodeURIComponent(userId)}&select=*,customer:customers(*)`,
       {
         headers: {
           'apikey': supabaseKey,
@@ -48,8 +83,8 @@ serve(async (req) => {
 
     if (!invoice) {
       return new Response(
-        JSON.stringify({ error: 'Invoice not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Invoice not found or access denied' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -71,6 +106,14 @@ serve(async (req) => {
       metadata: {
         invoice_id: invoiceId,
         invoice_number: invoice.invoice_number,
+        user_id: userId,
+      },
+      payment_intent_data: {
+        metadata: {
+          invoice_id: invoiceId,
+          invoice_number: invoice.invoice_number,
+          user_id: userId,
+        },
       },
       after_completion: {
         type: 'redirect',
@@ -90,7 +133,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Payment link creation error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: (error as any)?.message || 'Unexpected server error' }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,

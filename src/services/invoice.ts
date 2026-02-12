@@ -139,6 +139,11 @@ export const invoiceService = {
     if (status === 'sent') {
       updateData.sent_at = new Date().toISOString();
     }
+
+    // Set paid_at timestamp when marking as paid
+    if (status === 'paid') {
+      updateData.paid_at = new Date().toISOString();
+    }
     
     const { data, error } = await supabase
       .from('invoices')
