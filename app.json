@@ -2,7 +2,7 @@
   "expo": {
     "name": "Swift Invoice",
     "slug": "invoice-automator",
-    "version": "1.1.4",
+    "version": "1.1.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -23,7 +23,7 @@
         "backgroundColor": "#007AFF"
       },
       "package": "com.invoiceautomator.app",
-      "versionCode": 9,
+      "versionCode": 10,
       "permissions": [
         "READ_CONTACTS",
         "NOTIFICATIONS",
