@@ -23,7 +23,7 @@
         "backgroundColor": "#007AFF"
       },
       "package": "com.invoiceautomator.app",
-      "versionCode": 4,
+      "versionCode": 7,
       "permissions": [
         "READ_CONTACTS",
         "NOTIFICATIONS",
