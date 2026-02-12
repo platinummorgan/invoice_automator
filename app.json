@@ -2,7 +2,7 @@
   "expo": {
     "name": "Swift Invoice",
     "slug": "invoice-automator",
-    "version": "1.0.0",
+    "version": "1.1.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -14,7 +14,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.invoiceautomator.app"
+      "bundleIdentifier": "com.invoiceautomator.app",
+      "scheme": "com.invoiceautomator.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,22 +23,48 @@
         "backgroundColor": "#007AFF"
       },
       "package": "com.invoiceautomator.app",
+      "versionCode": 4,
       "permissions": [
         "READ_CONTACTS",
-        "NOTIFICATIONS"
+        "NOTIFICATIONS",
+        "com.android.vending.BILLING"
       ],
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "com.invoiceautomator.app",
+              "host": "auth",
+              "pathPrefix": "/callback"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-notifications"
+      "expo-notifications",
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Swift Invoice to access your photos so you can upload a business logo."
+        }
+      ]
     ],
     "extra": {
       "eas": {
-        "projectId": "your-eas-project-id"
+        "projectId": "aa2671dc-1b44-44d2-a195-a054122ea0d1"
       }
     }
   }
