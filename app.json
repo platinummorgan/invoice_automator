@@ -2,7 +2,7 @@
   "expo": {
     "name": "Swift Invoice",
     "slug": "invoice-automator",
-    "version": "1.1.6",
+    "version": "1.1.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -23,7 +23,7 @@
         "backgroundColor": "#007AFF"
       },
       "package": "com.invoiceautomator.app",
-      "versionCode": 11,
+      "versionCode": 12,
       "permissions": [
         "READ_CONTACTS",
         "NOTIFICATIONS",
@@ -61,7 +61,16 @@
           "photosPermission": "Allow Swift Invoice to access your photos so you can upload a business logo."
         }
       ],
-      "expo-mail-composer"
+      "expo-mail-composer",
+      "react-native-iap",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraProguardRules": "-keep class com.android.vending.billing.** { *; }"
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {
