@@ -2,7 +2,7 @@
   "expo": {
     "name": "Swift Invoice",
     "slug": "invoice-automator",
-    "version": "1.1.7",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -23,7 +23,7 @@
         "backgroundColor": "#007AFF"
       },
       "package": "com.invoiceautomator.app",
-      "versionCode": 12,
+      "versionCode": 15,
       "permissions": [
         "READ_CONTACTS",
         "NOTIFICATIONS",
@@ -67,7 +67,10 @@
         "expo-build-properties",
         {
           "android": {
-            "extraProguardRules": "-keep class com.android.vending.billing.** { *; }"
+            "extraProguardRules": "-keep class com.android.vending.billing.** { *; }",
+            "extraMavenRepos": [
+              "https://maven.google.com"
+            ]
           }
         }
       ]
