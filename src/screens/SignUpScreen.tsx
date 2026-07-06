@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Animated,
   View,
   Text,
   TextInput,
@@ -11,6 +12,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { authService } from '../services/auth';
 import { useTheme } from '../contexts/ThemeContext';
 import { GoogleIcon } from '../components/GoogleIcon';
@@ -30,10 +32,25 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleAvailable, setGoogleAvailable] = useState(true);
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(false);
+  const [introAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     setGoogleAvailable(authService.isGoogleSignInAvailable());
+    authService.isAppleSignInAvailable().then(setAppleAvailable).catch(() => {
+      setAppleAvailable(false);
+    });
+    Animated.timing(introAnim, {
+      toValue: 1,
+      duration: 550,
+      useNativeDriver: true,
+    }).start();
   }, []);
+
+  const showGoogleSignIn = googleAvailable;
+  const showAppleSignIn = Platform.OS === 'ios' && appleAvailable;
+  const showStoreSignIn = showGoogleSignIn || showAppleSignIn;
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
@@ -41,11 +58,25 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
       await authService.signInWithGoogle();
       onSignUpSuccess();
     } catch (error: any) {
-      if (error.message !== 'Google sign-in was cancelled or failed') {
+      if (!/cancelled/i.test(error.message || '')) {
         Alert.alert('Google Sign-In Failed', error.message || 'Please try again');
       }
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    setAppleLoading(true);
+    try {
+      await authService.signInWithApple();
+      onSignUpSuccess();
+    } catch (error: any) {
+      if (!/cancelled/i.test(error.message || '')) {
+        Alert.alert('Apple Sign-In Failed', error.message || 'Please try again');
+      }
+    } finally {
+      setAppleLoading(false);
     }
   };
 
@@ -91,15 +122,39 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <View style={styles.bgOrbTop} />
+      <View style={styles.bgOrbBottom} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.content}>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Start invoicing in seconds</Text>
+        <Animated.View
+          style={[
+            styles.content,
+            {
+              opacity: introAnim,
+              transform: [
+                {
+                  translateY: introAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [16, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.heroSection}>
+            <Text style={styles.kicker}>FAST ONBOARDING</Text>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Set up once. Send polished invoices from anywhere.</Text>
+          </View>
 
-          <View style={styles.form}>
+          <View style={styles.formCard}>
+            <Text style={styles.formTitle}>Business Profile</Text>
+            <Text style={styles.formSubtitle}>You can finish business details later in Settings.</Text>
+
+            <Text style={styles.fieldLabel}>Full Name</Text>
             <TextInput
               style={styles.input}
-              placeholder="Full Name"
+              placeholder="Alex Contractor"
               placeholderTextColor={theme.colors.placeholder}
               value={fullName}
               onChangeText={setFullName}
@@ -107,9 +162,10 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               editable={!loading}
             />
 
+            <Text style={styles.fieldLabel}>Email</Text>
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder="you@business.com"
               placeholderTextColor={theme.colors.placeholder}
               value={email}
               onChangeText={setEmail}
@@ -118,9 +174,10 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               editable={!loading}
             />
 
+            <Text style={styles.fieldLabel}>Password</Text>
             <TextInput
               style={styles.input}
-              placeholder="Password (min. 6 characters)"
+              placeholder="Minimum 6 characters"
               placeholderTextColor={theme.colors.placeholder}
               value={password}
               onChangeText={setPassword}
@@ -128,9 +185,10 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               editable={!loading}
             />
 
+            <Text style={styles.fieldLabel}>Confirm Password</Text>
             <TextInput
               style={styles.input}
-              placeholder="Confirm Password"
+              placeholder="Re-enter password"
               placeholderTextColor={theme.colors.placeholder}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
@@ -141,41 +199,55 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
             <TouchableOpacity
               style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleSignUp}
-              disabled={loading || googleLoading}
+              disabled={loading || googleLoading || appleLoading}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Sign Up</Text>
+                <Text style={styles.buttonText}>Create Account</Text>
               )}
             </TouchableOpacity>
 
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-          <TouchableOpacity
-            style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
-            onPress={handleGoogleSignIn}
-            disabled={loading || googleLoading || !googleAvailable}
-          >
-            {googleLoading ? (
-              <ActivityIndicator color="#333" />
-            ) : (
+            {showStoreSignIn && (
               <>
-                <GoogleIcon size={20} />
-                <Text style={styles.googleButtonText}>
-                  {googleAvailable ? 'Continue with Google' : 'Google Sign-In requires dev build'}
-                </Text>
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>OR</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                {showAppleSignIn && (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                    cornerRadius={12}
+                    style={[styles.appleButton, appleLoading && styles.buttonDisabled]}
+                    onPress={handleAppleSignIn}
+                  />
+                )}
+
+                {showGoogleSignIn && (
+                  <TouchableOpacity
+                    style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+                    onPress={handleGoogleSignIn}
+                    disabled={loading || googleLoading || appleLoading}
+                  >
+                    {googleLoading ? (
+                      <ActivityIndicator color={theme.colors.text} />
+                    ) : (
+                      <>
+                        <GoogleIcon size={20} />
+                        <Text style={styles.googleButtonText}>Continue with Google</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
               </>
             )}
-          </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => navigation.goBack()}
-              disabled={loading || googleLoading}
+              disabled={loading || googleLoading || appleLoading}
             >
               <Text style={styles.linkText}>
                 Already have an account? <Text style={styles.linkTextBold}>Login</Text>
@@ -190,7 +262,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               </Text>
             </View>
           </View>
-        </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -201,43 +273,111 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  bgOrbTop: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    top: -90,
+    right: -70,
+    backgroundColor: theme.colors.primaryLight,
+  },
+  bgOrbBottom: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    bottom: -140,
+    left: -120,
+    backgroundColor: theme.colors.accentSoft,
+  },
   scrollContent: {
     flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: 54,
+    paddingBottom: 30,
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
-    padding: 24,
+  },
+  heroSection: {
+    marginBottom: 18,
+  },
+  kicker: {
+    alignSelf: 'flex-start',
+    backgroundColor: theme.colors.cardStrong,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    fontFamily: theme.fonts.body,
+    letterSpacing: 0.9,
+    marginBottom: 14,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 38,
+    fontFamily: theme.fonts.headline,
+    fontWeight: '700',
     color: theme.colors.text,
-    marginBottom: 8,
-    textAlign: 'center',
+    marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
+    fontFamily: theme.fonts.body,
     color: theme.colors.textSecondary,
-    marginBottom: 32,
-    textAlign: 'center',
+    lineHeight: 23,
+    maxWidth: '94%',
   },
-  form: {
-    gap: 16,
+  formCard: {
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.border,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 18,
+    shadowColor: theme.colors.shadow,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.11,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  formTitle: {
+    fontSize: 26,
+    fontFamily: theme.fonts.headline,
+    color: theme.colors.text,
+    marginBottom: 2,
+  },
+  formSubtitle: {
+    fontSize: 13,
+    fontFamily: theme.fonts.body,
+    color: theme.colors.textSecondary,
+    marginBottom: 14,
+    lineHeight: 20,
+  },
+  fieldLabel: {
+    fontSize: 11,
+    fontFamily: theme.fonts.body,
+    letterSpacing: 0.8,
+    color: theme.colors.textSecondary,
+    marginBottom: 6,
+    textTransform: 'uppercase',
   },
   input: {
     backgroundColor: theme.colors.inputBackground,
-    padding: 16,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderRadius: 12,
     fontSize: 16,
-    borderWidth: 2,
+    fontFamily: theme.fonts.body,
+    borderWidth: 1,
     borderColor: theme.colors.inputBorder,
     color: theme.colors.text,
+    marginBottom: 10,
   },
   button: {
     backgroundColor: theme.colors.primary,
-    padding: 16,
-    borderRadius: 8,
+    padding: 15,
+    borderRadius: 12,
     alignItems: 'center',
     marginTop: 8,
   },
@@ -247,21 +387,24 @@ const createStyles = (theme: any) => StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: theme.fonts.body,
+    fontWeight: '700',
   },
   linkText: {
     textAlign: 'center',
     color: theme.colors.textSecondary,
+    fontFamily: theme.fonts.body,
     marginTop: 16,
+    fontSize: 13,
   },
   linkTextBold: {
-    color: theme.colors.primary,
-    fontWeight: '600',
+    color: theme.colors.accent,
+    fontWeight: '700',
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 8,
+    marginVertical: 14,
   },
   dividerLine: {
     flex: 1,
@@ -269,39 +412,46 @@ const createStyles = (theme: any) => StyleSheet.create({
     backgroundColor: theme.colors.border,
   },
   dividerText: {
-    marginHorizontal: 16,
+    marginHorizontal: 10,
     color: theme.colors.textSecondary,
-    fontSize: 14,
+    fontFamily: theme.fonts.body,
+    fontSize: 11,
+    letterSpacing: 0.9,
   },
   googleButton: {
-    backgroundColor: theme.colors.card,
-    padding: 16,
-    borderRadius: 8,
+    backgroundColor: theme.colors.cardStrong,
+    padding: 14,
+    borderRadius: 12,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: theme.colors.border,
     gap: 12,
+    marginTop: 10,
+  },
+  appleButton: {
+    width: '100%',
+    height: 48,
+    marginBottom: 10,
   },
   googleButtonText: {
     color: theme.colors.text,
     fontSize: 16,
-    fontWeight: '600',
-  },
-  googleIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: theme.colors.primary,
+    fontFamily: theme.fonts.body,
+    fontWeight: '700',
   },
   terms: {
-    marginTop: 24,
+    marginTop: 16,
     padding: 16,
-    backgroundColor: theme.colors.card,
-    borderRadius: 8,
+    backgroundColor: theme.colors.cardStrong,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   termsText: {
     fontSize: 12,
+    fontFamily: theme.fonts.body,
     color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,

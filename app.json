@@ -2,7 +2,7 @@
   "expo": {
     "name": "Swift Invoice",
     "slug": "invoice-automator",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,7 +15,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.invoiceautomator.app",
-      "scheme": "com.invoiceautomator.app"
+      "scheme": "com.invoiceautomator.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSContactsUsageDescription": "Allow Swift Invoice to access your contacts so you can quickly add invoice customers.",
+        "NSPhotoLibraryUsageDescription": "Allow Swift Invoice to access your photos so you can upload a business logo."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,11 +28,17 @@
         "backgroundColor": "#007AFF"
       },
       "package": "com.invoiceautomator.app",
-      "versionCode": 15,
       "permissions": [
         "READ_CONTACTS",
         "NOTIFICATIONS",
         "com.android.vending.BILLING"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.WRITE_CONTACTS",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -53,6 +64,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-apple-authentication",
       "expo-notifications",
       "expo-web-browser",
       [

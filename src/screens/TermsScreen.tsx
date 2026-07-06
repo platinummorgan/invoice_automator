@@ -73,7 +73,9 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
 
           <Text style={styles.sectionTitle}>6. Payment and Fees</Text>
           <Text style={styles.paragraph}>
-            Swift Invoice is currently provided free of charge. We reserve the right to introduce paid features or subscription plans in the future, with advance notice to users.
+            Swift Invoice offers a free tier and optional paid subscription plans.
+            Subscription features, pricing, billing terms, and cancellation details
+            are provided in-app and through your platform app store.
           </Text>
 
           <Text style={styles.sectionTitle}>7. Email Delivery</Text>

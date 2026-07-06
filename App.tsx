@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -24,13 +24,25 @@ function AppContent({ isAuthenticated, onLoginSuccess }: { isAuthenticated: bool
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const restoredPurchaseUserIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
+    subscriptionService.initialize().catch((error) => {
+      console.warn('Error initializing IAP services:', error);
+    });
+
     checkAuth();
 
     const { data: authListener } = authService.onAuthStateChange(
       (event, session) => {
         setIsAuthenticated(!!session);
+        if (!session) {
+          restoredPurchaseUserIdsRef.current.clear();
+          return;
+        }
+        restorePurchasesForSession(session).catch((error) => {
+          console.warn('Error restoring purchases after auth change:', error);
+        });
       }
     );
 
@@ -46,10 +58,28 @@ export default function App() {
     try {
       const session = await authService.getSession();
       setIsAuthenticated(!!session);
+      restorePurchasesForSession(session).catch((error) => {
+        console.warn('Error restoring purchases during auth check:', error);
+      });
     } catch (error) {
       console.error('Auth check error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const restorePurchasesForSession = async (session: any) => {
+    const userId = session?.user?.id;
+    if (!userId || !subscriptionService.isIapAvailable()) return;
+
+    if (restoredPurchaseUserIdsRef.current.has(userId)) return;
+    restoredPurchaseUserIdsRef.current.add(userId);
+
+    try {
+      await subscriptionService.restorePurchases();
+    } catch (error) {
+      restoredPurchaseUserIdsRef.current.delete(userId);
+      throw error;
     }
   };
 

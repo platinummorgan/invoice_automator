@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Image,
   Switch,
@@ -42,6 +43,10 @@ interface SettingsScreenProps {
 }
 
 const LOGO_BUCKET = 'logos';
+const IOS_SUBSCRIPTION_MANAGEMENT_URL = 'https://apps.apple.com/account/subscriptions';
+const IOS_REFUND_REQUEST_URL = 'https://support.apple.com/en-us/HT204084';
+const ANDROID_SUBSCRIPTION_MANAGEMENT_URL =
+  'https://play.google.com/store/account/subscriptions?package=com.invoiceautomator.app';
 const INVOICE_TEMPLATE_OPTIONS: Array<{ value: InvoiceTemplate; title: string; subtitle: string }> = [
   { value: 'classic', title: 'Classic', subtitle: 'Balanced and professional' },
   { value: 'painter', title: 'Painter', subtitle: 'Bold layout for service trades' },
@@ -86,6 +91,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [showTerms, setShowTerms] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
+  const [restoringPurchases, setRestoringPurchases] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -235,6 +242,76 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRestorePurchases = async () => {
+    try {
+      setRestoringPurchases(true);
+      const accountStatus = await subscriptionService.getSubscriptionStatus();
+
+      if (accountStatus.isPro) {
+        setSubscriptionStatus(accountStatus);
+        Alert.alert(
+          'Pro Active',
+          'Your Swift Invoice account already has Pro access on this device.'
+        );
+        return;
+      }
+
+      const restored = await subscriptionService.restorePurchases();
+      await loadSubscription();
+      Alert.alert(
+        restored ? 'Purchases Restored' : 'No Purchases Found',
+        restored
+          ? 'Your active subscription has been restored.'
+          : 'No active Swift Invoice subscription was found for this store account.'
+      );
+    } catch (error: any) {
+      Alert.alert(
+        'Restore Failed',
+        error.message || 'Unable to restore purchases. Please try again.'
+      );
+    } finally {
+      setRestoringPurchases(false);
+    }
+  };
+
+  const openExternalUrl = async (url: string, fallbackMessage: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        throw new Error('Unable to open URL.');
+      }
+      await Linking.openURL(url);
+    } catch (error) {
+      Alert.alert('Unable to Open Link', fallbackMessage);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    await openExternalUrl(
+      Platform.OS === 'ios'
+        ? IOS_SUBSCRIPTION_MANAGEMENT_URL
+        : ANDROID_SUBSCRIPTION_MANAGEMENT_URL,
+      Platform.OS === 'ios'
+        ? 'Open Settings > Apple ID > Subscriptions to manage or cancel your subscription.'
+        : 'Open Google Play > Payments & subscriptions > Subscriptions to manage or cancel your subscription.'
+    );
+  };
+
+  const handleRequestRefund = async () => {
+    if (Platform.OS !== 'ios') {
+      await openExternalUrl(
+        ANDROID_SUBSCRIPTION_MANAGEMENT_URL,
+        'Open Google Play > Payments & subscriptions to manage subscription billing.'
+      );
+      return;
+    }
+
+    await openExternalUrl(
+      IOS_REFUND_REQUEST_URL,
+      'Visit Apple Support and search for "request a refund" to request help with an App Store purchase.'
+    );
   };
 
   const getLogoPath = (userId: string) => `${userId}/logo`;
@@ -489,6 +566,46 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     );
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This permanently deletes your account, business profile, customers, invoices, payment records, and uploaded logo. If you have an active App Store or Google Play subscription, deleting your account does not cancel store billing. Cancel it in your store account settings before deleting if you no longer want to be billed. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Permanently Delete Account?',
+              'Your Swift Invoice account and data will be deleted immediately. Store subscriptions are managed separately by Apple or Google and may continue unless cancelled in your store account.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete Account',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      setDeletingAccount(true);
+                      await authService.deleteAccount();
+                    } catch (error: any) {
+                      Alert.alert(
+                        'Delete Account Failed',
+                        error?.message || 'Unable to delete your account. Please contact support.'
+                      );
+                    } finally {
+                      setDeletingAccount(false);
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -504,9 +621,10 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     >
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageIntroCard}>
+          <Text style={styles.pageIntroKicker}>CONTROL CENTER</Text>
           <Text style={styles.pageIntroTitle}>Business Settings</Text>
           <Text style={styles.pageIntroSubtitle}>
-            Manage branding, payment methods, and account preferences in one place.
+            Tune your brand, billing profile, and account defaults in one place.
           </Text>
         </View>
 
@@ -534,12 +652,45 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                     <Text style={styles.upgradeButtonText}>Upgrade to Pro - $3.99/month</Text>
                     <Text style={styles.upgradeSubtext}>Unlimited invoices • Priority support</Text>
                   </TouchableOpacity>
+                  <Text style={styles.subscriptionDisclosure}>
+                    Monthly subscription renews automatically unless cancelled in your App Store or Google Play account settings before renewal. You can manage or cancel store billing at any time.
+                  </Text>
                 </>
               ) : (
-                <Text style={styles.subscriptionInfo}>
-                  Unlimited invoices • All features unlocked
-                </Text>
+                <>
+                  <Text style={styles.subscriptionInfo}>
+                    Unlimited invoices • All features unlocked
+                  </Text>
+                  <Text style={styles.subscriptionDisclosure}>
+                    Store billing is managed by your App Store or Google Play account. Deleting your Swift Invoice account does not cancel store billing.
+                  </Text>
+                </>
               )}
+              <TouchableOpacity
+                style={[styles.restoreButton, restoringPurchases && styles.actionButtonDisabled]}
+                onPress={handleRestorePurchases}
+                disabled={restoringPurchases}
+              >
+                {restoringPurchases ? (
+                  <ActivityIndicator color={theme.colors.primary} />
+                ) : (
+                  <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.subscriptionLinkButton}
+                onPress={handleManageSubscription}
+              >
+                <Text style={styles.subscriptionLinkButtonText}>Manage Subscription</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.subscriptionLinkButton}
+                onPress={handleRequestRefund}
+              >
+                <Text style={styles.subscriptionLinkButtonText}>
+                  {Platform.OS === 'ios' ? 'Request App Store Refund' : 'Manage Google Play Billing'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -798,10 +949,23 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.logoutButton}
+          style={[styles.logoutButton, deletingAccount && styles.actionButtonDisabled]}
           onPress={handleLogout}
+          disabled={deletingAccount}
         >
           <Text style={styles.logoutButtonText}>Logout</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.deleteAccountButton, deletingAccount && styles.actionButtonDisabled]}
+          onPress={handleDeleteAccount}
+          disabled={deletingAccount}
+        >
+          {deletingAccount ? (
+            <ActivityIndicator color={theme.colors.error} />
+          ) : (
+            <Text style={styles.deleteAccountButtonText}>Delete Account</Text>
+          )}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -823,70 +987,82 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 14,
     paddingBottom: 36,
   },
   pageIntroCard: {
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.cardStrong,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
     marginBottom: 14,
   },
+  pageIntroKicker: {
+    color: theme.colors.accent,
+    fontSize: 11,
+    letterSpacing: 1.4,
+    marginBottom: 7,
+    fontFamily: theme.fonts.body,
+  },
   pageIntroTitle: {
-    fontSize: 21,
-    fontWeight: '700',
+    fontSize: 30,
     color: theme.colors.text,
-    marginBottom: 4,
+    marginBottom: 7,
+    fontFamily: theme.fonts.headline,
   },
   pageIntroSubtitle: {
     fontSize: 14,
     color: theme.colors.textSecondary,
     lineHeight: 20,
+    fontFamily: theme.fonts.body,
   },
   section: {
     backgroundColor: theme.colors.card,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: theme.colors.border,
     padding: 16,
     marginBottom: 14,
     elevation: 1,
     shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.08,
-    shadowRadius: 2,
+    shadowRadius: 7,
   },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 22,
     color: theme.colors.text,
-    marginBottom: 10,
+    marginBottom: 11,
+    fontFamily: theme.fonts.headline,
   },
   sectionSubtitle: {
     fontSize: 13,
     color: theme.colors.textSecondary,
     marginBottom: 12,
     lineHeight: 18,
+    fontFamily: theme.fonts.body,
   },
   inputGroup: {
     marginBottom: 16,
   },
   label: {
     fontSize: 13,
-    fontWeight: '600',
     color: theme.colors.text,
     marginBottom: 6,
+    fontFamily: theme.fonts.body,
   },
   input: {
     backgroundColor: theme.colors.inputBackground,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.inputBorder,
     borderRadius: 10,
     padding: 12,
     fontSize: 15,
     color: theme.colors.text,
+    fontFamily: theme.fonts.body,
   },
   multilineInput: {
     minHeight: 80,
@@ -895,7 +1071,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   paymentInput: {
     minHeight: 120,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontFamily: theme.fonts.mono,
   },
   methodChipWrap: {
     flexDirection: 'row',
@@ -906,29 +1082,30 @@ const createStyles = (theme: any) => StyleSheet.create({
   methodChip: {
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.cardStrong,
     borderRadius: 999,
     paddingHorizontal: 13,
     paddingVertical: 9,
   },
   methodChipActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primary + '14',
+    borderColor: theme.colors.accent,
+    backgroundColor: theme.colors.accentSoft,
   },
   methodChipText: {
     fontSize: 12,
     color: theme.colors.textSecondary,
-    fontWeight: '600',
+    fontFamily: theme.fonts.body,
   },
   methodChipTextActive: {
-    color: theme.colors.primary,
-    fontWeight: '600',
+    color: theme.colors.accent,
+    fontFamily: theme.fonts.body,
   },
   helperText: {
     fontSize: 12,
     color: theme.colors.textSecondary,
     marginTop: 8,
     lineHeight: 16,
+    fontFamily: theme.fonts.body,
   },
   logoCard: {
     backgroundColor: theme.colors.background,
@@ -955,6 +1132,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   logoPlaceholderText: {
     color: theme.colors.textSecondary,
     fontSize: 14,
+    fontFamily: theme.fonts.body,
   },
   logoActions: {
     flexDirection: 'row',
@@ -973,7 +1151,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   logoButtonText: {
     color: '#fff',
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: theme.fonts.body,
   },
   logoRemoveButton: {
     backgroundColor: theme.colors.card,
@@ -983,7 +1161,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   logoRemoveButtonText: {
     color: theme.colors.error,
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: theme.fonts.body,
   },
   templateGrid: {
     gap: 10,
@@ -1001,9 +1179,9 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   templateTitle: {
     fontSize: 15,
-    fontWeight: '600',
     color: theme.colors.text,
     marginBottom: 4,
+    fontFamily: theme.fonts.headline,
   },
   templateTitleActive: {
     color: theme.colors.primary,
@@ -1011,6 +1189,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   templateSubtitle: {
     fontSize: 13,
     color: theme.colors.textSecondary,
+    fontFamily: theme.fonts.body,
   },
   accentColorRow: {
     flexDirection: 'row',
@@ -1030,7 +1209,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   applyAccentButtonText: {
     color: '#fff',
-    fontWeight: '600',
+    fontFamily: theme.fonts.body,
   },
   colorPresetRow: {
     flexDirection: 'row',
@@ -1068,11 +1247,11 @@ const createStyles = (theme: any) => StyleSheet.create({
   layoutButtonText: {
     fontSize: 14,
     color: theme.colors.textSecondary,
-    fontWeight: '500',
+    fontFamily: theme.fonts.body,
   },
   layoutButtonTextActive: {
     color: theme.colors.primary,
-    fontWeight: '600',
+    fontFamily: theme.fonts.body,
   },
   templateToggleCard: {
     borderWidth: 1,
@@ -1094,6 +1273,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 14,
     flex: 1,
     paddingRight: 8,
+    fontFamily: theme.fonts.body,
   },
   applyTemplateButton: {
     backgroundColor: theme.colors.primary,
@@ -1103,8 +1283,8 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   applyTemplateButtonText: {
     color: '#fff',
-    fontWeight: '600',
     fontSize: 15,
+    fontFamily: theme.fonts.body,
   },
   bottomActions: {
     padding: 16,
@@ -1116,21 +1296,21 @@ const createStyles = (theme: any) => StyleSheet.create({
   saveButton: {
     backgroundColor: theme.colors.primary,
     padding: 16,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
   },
   saveButtonDisabled: {
     opacity: 0.5,
   },
   saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#FBF7EF',
+    fontSize: 15,
+    fontFamily: theme.fonts.body,
   },
   logoutButton: {
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.card,
     padding: 16,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
     marginTop: 12,
     borderWidth: 1,
@@ -1138,8 +1318,26 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   logoutButtonText: {
     color: theme.colors.error,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontFamily: theme.fonts.body,
+  },
+  deleteAccountButton: {
+    backgroundColor: theme.colors.card,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.error,
+  },
+  deleteAccountButtonText: {
+    color: theme.colors.error,
+    fontSize: 15,
+    fontWeight: '700',
+    fontFamily: theme.fonts.body,
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
   },
   linkRow: {
     flexDirection: 'row',
@@ -1149,17 +1347,19 @@ const createStyles = (theme: any) => StyleSheet.create({
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 10,
-    backgroundColor: theme.colors.background,
+    borderRadius: 12,
+    backgroundColor: theme.colors.cardStrong,
     marginBottom: 10,
   },
   linkText: {
     fontSize: 15,
     color: theme.colors.text,
+    fontFamily: theme.fonts.body,
   },
   linkArrow: {
     fontSize: 20,
     color: theme.colors.textSecondary,
+    fontFamily: theme.fonts.body,
   },
   versionRow: {
     marginTop: 10,
@@ -1170,17 +1370,18 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textSecondary,
     textAlign: 'center',
+    fontFamily: theme.fonts.body,
   },
   subscriptionCard: {
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.cardStrong,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
   subscriptionCardPro: {
-    backgroundColor: theme.colors.background,
-    borderColor: '#FFD700',
+    backgroundColor: theme.colors.primaryLight,
+    borderColor: theme.colors.primary,
   },
   subscriptionHeader: {
     flexDirection: 'row',
@@ -1189,41 +1390,76 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginBottom: 12,
   },
   subscriptionTier: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
     color: theme.colors.text,
+    fontFamily: theme.fonts.headline,
   },
   subscriptionActive: {
     fontSize: 12,
-    fontWeight: '600',
     color: theme.colors.success,
     backgroundColor: theme.colors.card,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
+    fontFamily: theme.fonts.body,
   },
   subscriptionInfo: {
     fontSize: 14,
     color: theme.colors.textSecondary,
     marginBottom: 12,
+    fontFamily: theme.fonts.body,
   },
   upgradeButton: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.accent,
     padding: 16,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
     marginTop: 8,
   },
   upgradeButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#FBF7EF',
+    fontSize: 15,
+    fontFamily: theme.fonts.body,
   },
   upgradeSubtext: {
-    color: '#fff',
+    color: '#FBF7EF',
     fontSize: 12,
     marginTop: 4,
     opacity: 0.9,
+    fontFamily: theme.fonts.body,
+  },
+  subscriptionDisclosure: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 10,
+    fontFamily: theme.fonts.body,
+  },
+  restoreButton: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 10,
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 12,
+    backgroundColor: theme.colors.card,
+  },
+  restoreButtonText: {
+    color: theme.colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: theme.fonts.body,
+  },
+  subscriptionLinkButton: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  subscriptionLinkButtonText: {
+    color: theme.colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: theme.fonts.body,
   },
   themeOptions: {
     flexDirection: 'row',
@@ -1232,18 +1468,18 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   themeOption: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.cardStrong,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 14,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 92,
   },
   themeOptionActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.inputBackground,
+    borderColor: theme.colors.accent,
+    backgroundColor: theme.colors.accentSoft,
   },
   themeOptionEmoji: {
     fontSize: 28,
@@ -1251,11 +1487,12 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   themeOptionText: {
     fontSize: 14,
-    fontWeight: '600',
     color: theme.colors.textSecondary,
+    fontFamily: theme.fonts.body,
   },
   themeOptionTextActive: {
-    color: theme.colors.primary,
+    color: theme.colors.accent,
+    fontFamily: theme.fonts.body,
   },
   linkContent: {
     flexDirection: 'row',

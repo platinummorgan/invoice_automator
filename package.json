@@ -1,6 +1,6 @@
 {
   "name": "invoice-automator",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -10,7 +10,9 @@
     "clear": "expo start -c",
     "typecheck": "tsc --noEmit",
     "build:android": "eas build --platform android",
-    "submit:android": "eas submit --platform android"
+    "build:ios": "eas build --platform ios",
+    "submit:android": "eas submit --platform android",
+    "submit:ios": "eas submit --platform ios"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
@@ -19,7 +21,9 @@
     "@react-navigation/native": "^7.1.19",
     "@react-navigation/stack": "^7.6.2",
     "@supabase/supabase-js": "^2.80.0",
+    "ajv": "^8.20.0",
     "expo": "~54.0.33",
+    "expo-apple-authentication": "~8.0.8",
     "expo-application": "~7.0.8",
     "expo-auth-session": "~7.0.10",
     "expo-build-properties": "~1.0.10",

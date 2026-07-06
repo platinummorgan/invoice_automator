@@ -1,25 +1,39 @@
 {
   "cli": {
     "version": ">= 16.26.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "remote",
+    "promptToConfigurePushNotifications": false
   },
   "build": {
     "development": {
+      "environment": "development",
       "developmentClient": true,
       "distribution": "internal"
     },
     "preview": {
+      "environment": "preview",
       "distribution": "internal"
     },
     "production": {
+      "environment": "production",
       "autoIncrement": true,
       "credentialsSource": "local",
+      "android": {
+        "credentialsSource": "local"
+      },
+      "ios": {
+        "credentialsSource": "remote"
+      },
       "env": {
         "GRADLE_OPTS": "-Dorg.gradle.jvmargs=-Xmx4096m"
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6788092733"
+      }
+    }
   }
 }

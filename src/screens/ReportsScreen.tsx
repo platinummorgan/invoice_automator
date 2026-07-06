@@ -142,11 +142,20 @@ export default function ReportsScreen({ navigation }: ReportsScreenProps) {
 
   const yearTotals = calculateYearTotals();
   const insights = getInsights();
-  const years = [2026, 2025];
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear, currentYear - 1, currentYear - 2];
 
   return (
     <View style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.pageIntroCard}>
+          <Text style={styles.pageIntroKicker}>ANALYTICS</Text>
+          <Text style={styles.pageIntroTitle}>Cashflow Snapshot</Text>
+          <Text style={styles.pageIntroSubtitle}>
+            Track revenue momentum, unpaid risk, and month-over-month performance.
+          </Text>
+        </View>
+
         {/* Year Selector */}
         <View style={styles.yearSelector}>
           <Text style={styles.yearLabel}>Year:</Text>
@@ -292,25 +301,67 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  content: {
+    flex: 1,
+    paddingTop: 14,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  pageIntroCard: {
+    marginHorizontal: 16,
+    marginBottom: 14,
+    backgroundColor: theme.colors.cardStrong,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    shadowColor: theme.colors.shadow,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 2,
+  },
+  pageIntroKicker: {
+    color: theme.colors.accent,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    fontFamily: theme.fonts.body,
+    marginBottom: 8,
+  },
+  pageIntroTitle: {
+    color: theme.colors.text,
+    fontSize: 28,
+    lineHeight: 32,
+    fontFamily: theme.fonts.headline,
+    marginBottom: 8,
+  },
+  pageIntroSubtitle: {
+    color: theme.colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 21,
+    fontFamily: theme.fonts.body,
+  },
   yearSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: theme.colors.card,
+    marginHorizontal: 16,
+    marginBottom: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   yearLabel: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
     color: theme.colors.text,
     marginRight: 12,
+    fontFamily: theme.fonts.body,
   },
   yearScroll: {
     flex: 1,
@@ -318,85 +369,53 @@ const createStyles = (theme: any) => StyleSheet.create({
   yearButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 999,
     backgroundColor: theme.colors.background,
     marginRight: 8,
   },
   yearButtonActive: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.accent,
   },
   yearButtonText: {
     fontSize: 14,
     color: theme.colors.textSecondary,
-    fontWeight: '500',
+    fontFamily: theme.fonts.body,
   },
   yearButtonTextActive: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  summaryContainer: {
-    flexDirection: 'row',
-    padding: 16,
-    gap: 12,
-  },
-  summaryCard: {
-    flex: 1,
-    backgroundColor: theme.colors.card,
-    padding: 16,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 8,
-  },
-  summaryValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  summarySubtext: {
-    fontSize: 12,
-    color: theme.colors.placeholder,
-  },
-  content: {
-    flex: 1,
+    color: '#FBF7EF',
+    fontFamily: theme.fonts.body,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
     color: theme.colors.text,
     marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 16,
+    marginTop: 4,
+    marginBottom: 14,
+    fontFamily: theme.fonts.headline,
   },
   tableContainer: {
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.cardStrong,
     marginHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    elevation: 1,
     shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryLight,
     paddingVertical: 12,
     paddingHorizontal: 12,
   },
   tableHeaderText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#fff',
+    color: theme.colors.text,
+    fontFamily: theme.fonts.body,
   },
   tableRow: {
     flexDirection: 'row',
@@ -409,15 +428,16 @@ const createStyles = (theme: any) => StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   totalRow: {
-    backgroundColor: theme.colors.primaryLight,
+    backgroundColor: theme.colors.accentSoft,
     borderBottomWidth: 0,
   },
   tableCellText: {
     fontSize: 13,
     color: theme.colors.text,
+    fontFamily: theme.fonts.body,
   },
   totalText: {
-    fontWeight: '600',
+    fontFamily: theme.fonts.headline,
   },
   monthColumn: {
     width: 60,
@@ -437,15 +457,18 @@ const createStyles = (theme: any) => StyleSheet.create({
   countText: {
     fontSize: 11,
     color: theme.colors.placeholder,
+    fontFamily: theme.fonts.body,
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 48,
     marginHorizontal: 16,
-    backgroundColor: theme.colors.card,
-    borderRadius: 12,
-    marginTop: 16,
+    backgroundColor: theme.colors.cardStrong,
+    borderRadius: 16,
+    marginTop: 2,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   emptyIcon: {
     fontSize: 48,
@@ -453,32 +476,31 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: theme.colors.textSecondary,
+    color: theme.colors.text,
     marginBottom: 8,
+    fontFamily: theme.fonts.headline,
   },
   emptySubtext: {
     fontSize: 14,
     color: theme.colors.placeholder,
+    fontFamily: theme.fonts.body,
   },
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 12,
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   metricCard: {
     flex: 1,
     minWidth: '45%',
     backgroundColor: theme.colors.card,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   metricIcon: {
     fontSize: 28,
@@ -486,32 +508,30 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   metricValue: {
     fontSize: 20,
-    fontWeight: '700',
     color: theme.colors.text,
     marginBottom: 4,
+    fontFamily: theme.fonts.headline,
   },
   metricLabel: {
     fontSize: 12,
     color: theme.colors.textSecondary,
     textAlign: 'center',
+    fontFamily: theme.fonts.body,
   },
   chartContainer: {
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.cardStrong,
     marginHorizontal: 16,
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderRadius: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   chartTitle: {
     fontSize: 16,
-    fontWeight: '600',
     color: theme.colors.text,
     marginBottom: 16,
+    fontFamily: theme.fonts.headline,
   },
   chartBars: {
     flexDirection: 'row',
@@ -541,27 +561,31 @@ const createStyles = (theme: any) => StyleSheet.create({
     color: theme.colors.textSecondary,
     marginTop: 6,
     textAlign: 'center',
+    fontFamily: theme.fonts.body,
   },
   insightsContainer: {
     marginHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   insightCard: {
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.cardStrong,
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 8,
     borderLeftWidth: 3,
-    borderLeftColor: theme.colors.primary,
+    borderLeftColor: theme.colors.accent,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   insightText: {
     fontSize: 14,
     color: theme.colors.text,
     lineHeight: 20,
+    fontFamily: theme.fonts.body,
   },
   insightBold: {
-    fontWeight: '600',
     color: theme.colors.text,
+    fontFamily: theme.fonts.headline,
   },
   bottomSpacer: {
     height: 32,
