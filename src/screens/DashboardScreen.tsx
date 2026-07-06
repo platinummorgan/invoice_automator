@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
+  Animated,
   View,
   Text,
   FlatList,
@@ -38,6 +39,7 @@ const withOpacity = (hexColor: string, opacity: string) => `${hexColor}${opacity
 export default function DashboardScreen({ navigation }: DashboardScreenProps) {
   const { theme } = useTheme();
   const styles = createStyles(theme);
+  const [introAnim] = useState(() => new Animated.Value(0));
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -100,6 +102,14 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
     
     return unsubscribe;
   }, [navigation]);
+
+  useEffect(() => {
+    Animated.timing(introAnim, {
+      toValue: 1,
+      duration: 520,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -206,113 +216,124 @@ export default function DashboardScreen({ navigation }: DashboardScreenProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerBlock}>
-        <Text style={styles.headerTitle}>Invoice Overview</Text>
-        <Text style={styles.headerSubtitle}>
-          {invoices.length} invoice{invoices.length === 1 ? '' : 's'} in this view
-        </Text>
-      </View>
-
-      {/* Stats Cards */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Invoices</Text>
-          <Text style={styles.statValue}>{stats.total}</Text>
-        </View>
-        <View style={[styles.statCard, styles.statCardHighlighted]}>
-          <Text style={styles.statLabel}>Collected</Text>
-          <Text style={[styles.statValue, { color: theme.colors.success }]}>
-            {formatCurrency(stats.paidAmount)}
+      <Animated.View
+        style={[
+          styles.topSection,
+          {
+            opacity: introAnim,
+            transform: [
+              {
+                translateY: introAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [16, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.headerBlock}>
+          <Text style={styles.headerKicker}>LIVE DASHBOARD</Text>
+          <Text style={styles.headerTitle}>Revenue Tracker</Text>
+          <Text style={styles.headerSubtitle}>
+            {invoices.length} invoice{invoices.length === 1 ? '' : 's'} in the current view
           </Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Outstanding</Text>
-          <Text style={[styles.statValue, { color: theme.colors.error }]}>
-            {formatCurrency(stats.unpaidAmount)}
-          </Text>
-        </View>
-      </View>
 
-      {/* Pro Upgrade Banner (for free users) */}
-      {subscriptionStatus && !subscriptionStatus.isPro && (
-        <TouchableOpacity 
-          style={styles.proBanner}
-          onPress={() => navigation.navigate('Settings')}
-        >
-          <View style={styles.proBannerContent}>
-            <Text style={styles.proBannerEmoji}>⭐</Text>
-            <View style={styles.proBannerText}>
-              <Text style={styles.proBannerTitle}>Upgrade to Pro</Text>
-              <Text style={styles.proBannerSubtitle}>
-                {subscriptionStatus.remainingInvoices} of {subscriptionStatus.invoiceLimit} free invoices left • Unlimited for $3.99/mo
-              </Text>
-            </View>
-            <Text style={styles.proBannerArrow}>›</Text>
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Invoices</Text>
+            <Text style={styles.statValue}>{stats.total}</Text>
           </View>
-        </TouchableOpacity>
-      )}
+          <View style={[styles.statCard, styles.statCardHighlighted]}>
+            <Text style={styles.statLabel}>Collected</Text>
+            <Text style={[styles.statValue, { color: theme.colors.success }]}>
+              {formatCurrency(stats.paidAmount)}
+            </Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Outstanding</Text>
+            <Text style={[styles.statValue, { color: theme.colors.error }]}>
+              {formatCurrency(stats.unpaidAmount)}
+            </Text>
+          </View>
+        </View>
 
-      {/* Date Range Filter */}
-      <View style={styles.filterSection}>
-        <Text style={styles.filterLabel}>Date range</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterScrollContent}
-        >
-          {DATE_RANGE_OPTIONS.map((option) => (
-            <TouchableOpacity
-              key={option.key}
-              style={[
-                styles.dateRangeButton,
-                dateRange === option.key && styles.dateRangeButtonActive,
-              ]}
-              onPress={() => setDateRange(option.key)}
-            >
-              <Text
-                style={[
-                  styles.dateRangeText,
-                  dateRange === option.key && styles.dateRangeTextActive,
-                ]}
-              >
-                {option.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+        {subscriptionStatus && !subscriptionStatus.isPro && (
+          <TouchableOpacity style={styles.proBanner} onPress={() => navigation.navigate('Settings')}>
+            <View style={styles.proBannerContent}>
+              <Text style={styles.proBannerEmoji}>★</Text>
+              <View style={styles.proBannerText}>
+                <Text style={styles.proBannerTitle}>Upgrade to Pro</Text>
+                <Text style={styles.proBannerSubtitle}>
+                  {subscriptionStatus.remainingInvoices} of {subscriptionStatus.invoiceLimit} free invoices left
+                </Text>
+              </View>
+              <Text style={styles.proBannerArrow}>›</Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
-      {/* Filter Tabs */}
-      <View style={styles.filterSection}>
-        <Text style={styles.filterLabel}>Status</Text>
-        <View style={styles.filterContainer}>
-          {STATUS_FILTER_OPTIONS.map((option) => {
-            const countMap = {
-              all: stats.total,
-              paid: stats.paid,
-              unpaid: stats.unpaid,
-              voided: stats.voided,
-            } as const;
-
-            return (
+        <View style={styles.filterSection}>
+          <Text style={styles.filterLabel}>Date Range</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterScrollContent}
+          >
+            {DATE_RANGE_OPTIONS.map((option) => (
               <TouchableOpacity
                 key={option.key}
-                style={[styles.filterTab, filter === option.key && styles.filterTabActive]}
-                onPress={() => setFilter(option.key)}
+                style={[
+                  styles.dateRangeButton,
+                  dateRange === option.key && styles.dateRangeButtonActive,
+                ]}
+                onPress={() => setDateRange(option.key)}
               >
-                <Text style={[styles.filterText, filter === option.key && styles.filterTextActive]}>
+                <Text
+                  style={[
+                    styles.dateRangeText,
+                    dateRange === option.key && styles.dateRangeTextActive,
+                  ]}
+                >
                   {option.label}
                 </Text>
-                <Text
-                  style={[styles.filterCount, filter === option.key && styles.filterCountActive]}
-                >
-                  ({countMap[option.key]})
-                </Text>
               </TouchableOpacity>
-            );
-          })}
+            ))}
+          </ScrollView>
         </View>
-      </View>
+
+        <View style={styles.filterSection}>
+          <Text style={styles.filterLabel}>Status</Text>
+          <View style={styles.filterContainer}>
+            {STATUS_FILTER_OPTIONS.map((option) => {
+              const countMap = {
+                all: stats.total,
+                paid: stats.paid,
+                unpaid: stats.unpaid,
+                voided: stats.voided,
+              } as const;
+
+              return (
+                <TouchableOpacity
+                  key={option.key}
+                  style={[styles.filterTab, filter === option.key && styles.filterTabActive]}
+                  onPress={() => setFilter(option.key)}
+                >
+                  <Text style={[styles.filterText, filter === option.key && styles.filterTextActive]}>
+                    {option.label}
+                  </Text>
+                  <Text
+                    style={[styles.filterCount, filter === option.key && styles.filterCountActive]}
+                  >
+                    ({countMap[option.key]})
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </Animated.View>
 
       {/* Invoice List */}
       <FlatList
@@ -348,6 +369,9 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  topSection: {
+    paddingTop: 6,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -355,23 +379,37 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   headerBlock: {
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 4,
+    paddingTop: 12,
+    paddingBottom: 6,
+  },
+  headerKicker: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: theme.colors.cardStrong,
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    fontFamily: theme.fonts.body,
+    letterSpacing: 0.9,
+    marginBottom: 10,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 30,
+    fontFamily: theme.fonts.headline,
     fontWeight: '700',
     color: theme.colors.text,
   },
   headerSubtitle: {
     marginTop: 4,
-    fontSize: 13,
+    fontSize: 14,
+    fontFamily: theme.fonts.body,
     color: theme.colors.textSecondary,
   },
   statsContainer: {
     flexDirection: 'row',
     padding: 16,
-    gap: 10,
+    gap: 9,
   },
   statCard: {
     flex: 1,
@@ -380,40 +418,45 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderColor: theme.colors.border,
     paddingVertical: 14,
     paddingHorizontal: 12,
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: 'center',
     elevation: 1,
     shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
+    shadowOpacity: 0.09,
+    shadowRadius: 3,
   },
   statCardHighlighted: {
-    borderColor: withOpacity(theme.colors.success, '55'),
-    backgroundColor: withOpacity(theme.colors.success, theme.colors.background === '#000000' ? '1F' : '12'),
+    borderColor: withOpacity(theme.colors.success, '66'),
+    backgroundColor: withOpacity(theme.colors.success, theme.colors.background === '#131514' ? '26' : '12'),
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
+    fontFamily: theme.fonts.body,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
     color: theme.colors.textSecondary,
     marginBottom: 6,
     textAlign: 'center',
   },
   statValue: {
-    fontSize: 18,
+    fontSize: 20,
+    fontFamily: theme.fonts.body,
     fontWeight: 'bold',
     color: theme.colors.text,
     textAlign: 'center',
   },
   filterSection: {
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 10,
   },
   filterLabel: {
-    fontSize: 12,
+    fontSize: 11,
+    fontFamily: theme.fonts.body,
     fontWeight: '600',
     color: theme.colors.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: 0.9,
     marginBottom: 8,
   },
   filterScrollContent: {
@@ -442,17 +485,18 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginRight: 8,
   },
   dateRangeButtonActive: {
-    backgroundColor: withOpacity(theme.colors.primary, theme.colors.background === '#000000' ? '33' : '14'),
+    backgroundColor: withOpacity(theme.colors.primary, theme.colors.background === '#131514' ? '33' : '14'),
     borderColor: theme.colors.primary,
   },
   dateRangeText: {
     fontSize: 12,
+    fontFamily: theme.fonts.body,
     color: theme.colors.textSecondary,
     fontWeight: '500',
   },
   dateRangeTextActive: {
     color: theme.colors.primary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   filterTab: {
     flex: 1,
@@ -470,14 +514,16 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   filterText: {
     fontSize: 13,
+    fontFamily: theme.fonts.body,
     color: theme.colors.textSecondary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   filterTextActive: {
     color: '#fff',
   },
   filterCount: {
-    fontSize: 12,
+    fontSize: 11,
+    fontFamily: theme.fonts.body,
     color: theme.colors.textSecondary,
     fontWeight: '400',
     marginTop: 4,
@@ -487,13 +533,13 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   listContainer: {
     padding: 16,
-    paddingTop: 6,
-    paddingBottom: 96,
+    paddingTop: 8,
+    paddingBottom: 104,
   },
   invoiceCard: {
     backgroundColor: theme.colors.card,
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 16,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: theme.colors.border,
@@ -512,6 +558,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   invoiceNumber: {
     fontSize: 16,
+    fontFamily: theme.fonts.body,
     fontWeight: '600',
     color: theme.colors.text,
   },
@@ -523,10 +570,12 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   statusText: {
     fontSize: 10,
+    fontFamily: theme.fonts.body,
     fontWeight: '700',
   },
   customerName: {
     fontSize: 15,
+    fontFamily: theme.fonts.body,
     color: theme.colors.text,
     marginBottom: 10,
   },
@@ -537,10 +586,12 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   invoiceDate: {
     fontSize: 12,
+    fontFamily: theme.fonts.body,
     color: theme.colors.textSecondary,
   },
   invoiceAmount: {
     fontSize: 19,
+    fontFamily: theme.fonts.body,
     fontWeight: '700',
     color: theme.colors.text,
   },
@@ -556,12 +607,14 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
+    fontFamily: theme.fonts.headline,
     fontWeight: '700',
     color: theme.colors.text,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
+    fontFamily: theme.fonts.body,
     color: theme.colors.textSecondary,
     textAlign: 'center',
   },
@@ -572,29 +625,30 @@ const createStyles = (theme: any) => StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 4,
     shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.28,
     shadowRadius: 8,
   },
   fabText: {
-    fontSize: 32,
+    fontSize: 30,
     color: '#fff',
-    fontWeight: '300',
+    fontFamily: theme.fonts.body,
+    fontWeight: '500',
   },
   proBanner: {
     marginHorizontal: 16,
     marginTop: 4,
     marginBottom: 8,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.cardStrong,
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: withOpacity(theme.colors.primary, 'AA'),
+    borderColor: withOpacity(theme.colors.accent, '99'),
     elevation: 2,
     shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
@@ -606,26 +660,29 @@ const createStyles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
   },
   proBannerEmoji: {
-    fontSize: 32,
+    fontSize: 24,
     marginRight: 12,
+    color: theme.colors.accent,
   },
   proBannerText: {
     flex: 1,
   },
   proBannerTitle: {
     fontSize: 16,
+    fontFamily: theme.fonts.headline,
     fontWeight: '700',
-    color: '#fff',
+    color: theme.colors.text,
     marginBottom: 4,
   },
   proBannerSubtitle: {
     fontSize: 13,
-    color: '#fff',
-    opacity: 0.9,
+    fontFamily: theme.fonts.body,
+    color: theme.colors.textSecondary,
+    opacity: 0.95,
   },
   proBannerArrow: {
     fontSize: 24,
-    color: '#fff',
+    color: theme.colors.accent,
     marginLeft: 8,
   },
 });

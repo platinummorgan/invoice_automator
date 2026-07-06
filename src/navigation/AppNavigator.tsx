@@ -39,14 +39,30 @@ function MainTabs() {
         headerShown: true,
         headerStyle: {
           backgroundColor: theme.colors.background,
+          elevation: 0,
+          shadowOpacity: 0,
         },
         headerTintColor: theme.colors.text,
         headerTitleStyle: {
           color: theme.colors.text,
+          fontFamily: theme.fonts.headline,
+          fontSize: 22,
+          letterSpacing: 0.3,
         },
+        headerShadowVisible: false,
         tabBarStyle: {
           backgroundColor: theme.colors.card,
           borderTopColor: theme.colors.border,
+          borderTopWidth: 1,
+          height: 72,
+          paddingTop: 6,
+          paddingBottom: 10,
+        },
+        tabBarLabelStyle: {
+          fontFamily: theme.fonts.body,
+          fontSize: 12,
+          letterSpacing: 0.4,
+          fontWeight: '600',
         },
       }}
     >
@@ -58,7 +74,9 @@ function MainTabs() {
           headerTitle: 'Swift Invoice',
           headerTitleAlign: 'center',
           headerRight: () => null,
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>📋</Text>,
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 16, fontWeight: '700', color }}>▦</Text>
+          ),
         }}
       />
       <Tab.Screen
@@ -68,7 +86,9 @@ function MainTabs() {
           title: 'Reports',
           headerTitle: 'Reports',
           headerTitleAlign: 'center',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>📊</Text>,
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 16, fontWeight: '700', color }}>◷</Text>
+          ),
         }}
       />
       <Tab.Screen
@@ -79,7 +99,9 @@ function MainTabs() {
           headerTitle: 'Settings',
           headerTitleAlign: 'center',
           headerRight: () => null,
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>⚙️</Text>,
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 16, fontWeight: '700', color }}>⌘</Text>
+          ),
         }}
       />
     </Tab.Navigator>
@@ -143,11 +165,17 @@ export default function AppNavigator({ isAuthenticated, onLoginSuccess }: AppNav
           headerShown: true,
           headerStyle: {
             backgroundColor: theme.colors.background,
+            elevation: 0,
+            shadowOpacity: 0,
           },
           headerTintColor: theme.colors.text,
           headerTitleStyle: {
             color: theme.colors.text,
+            fontFamily: theme.fonts.headline,
+            fontSize: 21,
+            letterSpacing: 0.3,
           },
+          headerShadowVisible: false,
         }}
       >
         {!isAuthenticated ? (

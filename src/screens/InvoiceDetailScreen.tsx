@@ -904,26 +904,28 @@ const createStyles = (theme: any) => StyleSheet.create({
   errorText: {
     fontSize: 16,
     color: theme.colors.textSecondary,
+    fontFamily: theme.fonts.body,
   },
   scrollView: {
     flex: 1,
   },
   content: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 14,
     paddingBottom: 100,
   },
   headerCard: {
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.cardStrong,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 20,
+    padding: 16,
     marginBottom: 12,
     elevation: 1,
     shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
-    shadowRadius: 2,
+    shadowRadius: 8,
   },
   headerTopRow: {
     flexDirection: 'row',
@@ -933,15 +935,16 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   headerEyebrow: {
     fontSize: 12,
-    color: theme.colors.textSecondary,
+    color: theme.colors.accent,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: 2,
+    letterSpacing: 1.2,
+    marginBottom: 4,
+    fontFamily: theme.fonts.body,
   },
   invoiceNumber: {
     fontSize: 24,
-    fontWeight: '700',
     color: theme.colors.text,
+    fontFamily: theme.fonts.headline,
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -950,8 +953,8 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   statusText: {
     fontSize: 10,
-    fontWeight: '700',
     color: '#fff',
+    fontFamily: theme.fonts.body,
   },
   headerMetaRow: {
     flexDirection: 'row',
@@ -959,7 +962,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   headerMetaItem: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.card,
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: 10,
@@ -972,15 +975,16 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginBottom: 3,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
+    fontFamily: theme.fonts.body,
   },
   headerMetaValue: {
     fontSize: 12,
     color: theme.colors.text,
-    fontWeight: '600',
+    fontFamily: theme.fonts.headline,
   },
   section: {
     backgroundColor: theme.colors.card,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: theme.colors.border,
     padding: 14,
@@ -988,11 +992,11 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 12,
-    fontWeight: '600',
-    color: theme.colors.textSecondary,
+    color: theme.colors.accent,
     marginBottom: 10,
     textTransform: 'uppercase',
-    letterSpacing: 0.45,
+    letterSpacing: 1,
+    fontFamily: theme.fonts.body,
   },
   brandingRow: {
     flexDirection: 'row',
@@ -1005,10 +1009,10 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderRadius: 6,
   },
   brandingBusinessName: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 20,
     color: theme.colors.text,
     marginBottom: 2,
+    fontFamily: theme.fonts.headline,
   },
   brandingTextBlock: {
     flex: 1,
@@ -1016,17 +1020,19 @@ const createStyles = (theme: any) => StyleSheet.create({
   brandingBusinessDetail: {
     fontSize: 12,
     color: theme.colors.textSecondary,
+    fontFamily: theme.fonts.body,
   },
   customerName: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 20,
     color: theme.colors.text,
     marginBottom: 4,
+    fontFamily: theme.fonts.headline,
   },
   customerDetail: {
     fontSize: 13,
     color: theme.colors.textSecondary,
     marginBottom: 2,
+    fontFamily: theme.fonts.body,
   },
   itemRow: {
     flexDirection: 'row',
@@ -1043,19 +1049,21 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 14,
     color: theme.colors.text,
     marginBottom: 4,
+    fontFamily: theme.fonts.body,
   },
   itemSubtext: {
     fontSize: 12,
     color: theme.colors.placeholder,
+    fontFamily: theme.fonts.body,
   },
   itemAmount: {
     fontSize: 14,
-    fontWeight: '600',
     color: theme.colors.text,
+    fontFamily: theme.fonts.headline,
   },
   totalsSection: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 14,
+    backgroundColor: theme.colors.cardStrong,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: theme.colors.border,
     padding: 14,
@@ -1069,11 +1077,12 @@ const createStyles = (theme: any) => StyleSheet.create({
   totalLabel: {
     fontSize: 14,
     color: theme.colors.textSecondary,
+    fontFamily: theme.fonts.body,
   },
   totalValue: {
     fontSize: 14,
     color: theme.colors.text,
-    fontWeight: '500',
+    fontFamily: theme.fonts.body,
   },
   grandTotalRow: {
     borderTopWidth: 1,
@@ -1084,18 +1093,19 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   grandTotalLabel: {
     fontSize: 17,
-    fontWeight: '700',
     color: theme.colors.text,
+    fontFamily: theme.fonts.headline,
   },
   grandTotalValue: {
     fontSize: 23,
-    fontWeight: '700',
-    color: theme.colors.primary,
+    color: theme.colors.accent,
+    fontFamily: theme.fonts.headline,
   },
   notesText: {
     fontSize: 13,
     color: theme.colors.textSecondary,
     lineHeight: 18,
+    fontFamily: theme.fonts.body,
   },
   sendEmailButton: {
     flex: 1,
@@ -1117,8 +1127,8 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   receiptButtonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontFamily: theme.fonts.body,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -1141,8 +1151,8 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   voidButtonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontFamily: theme.fonts.body,
   },
   markPaidButton: {
     flex: 1,
@@ -1153,8 +1163,8 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   markPaidButtonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontFamily: theme.fonts.body,
   },
   voidNotice: {
     backgroundColor: `${theme.colors.warning}20`,
@@ -1166,7 +1176,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   voidTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: theme.fonts.headline,
     color: theme.colors.warning,
     marginBottom: 8,
   },
@@ -1174,11 +1184,13 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 14,
     color: theme.colors.text,
     marginBottom: 4,
+    fontFamily: theme.fonts.body,
   },
   voidDate: {
     fontSize: 12,
     color: theme.colors.textSecondary,
     fontStyle: 'italic',
+    fontFamily: theme.fonts.body,
   },
   modalOverlay: {
     flex: 1,
@@ -1195,15 +1207,16 @@ const createStyles = (theme: any) => StyleSheet.create({
     maxWidth: 400,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 24,
     color: theme.colors.text,
     marginBottom: 12,
+    fontFamily: theme.fonts.headline,
   },
   modalDescription: {
     fontSize: 14,
     color: theme.colors.textSecondary,
     marginBottom: 16,
+    fontFamily: theme.fonts.body,
   },
   modalInput: {
     borderWidth: 1,
@@ -1216,6 +1229,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
     marginBottom: 20,
+    fontFamily: theme.fonts.body,
   },
   modalButtons: {
     flexDirection: 'row',
@@ -1234,27 +1248,27 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   modalButtonCancelText: {
     color: theme.colors.textSecondary,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontFamily: theme.fonts.body,
   },
   modalButtonVoid: {
     backgroundColor: theme.colors.error,
   },
   modalButtonVoidText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontFamily: theme.fonts.body,
   },
   previewButton: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.accent,
     padding: 16,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
   },
   previewButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#FBF7EF',
+    fontSize: 15,
+    fontFamily: theme.fonts.body,
   },
   previewContainer: {
     flex: 1,

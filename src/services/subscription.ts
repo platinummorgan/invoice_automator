@@ -9,7 +9,18 @@ type Purchase = {
 
 const SUBSCRIPTION_SKUS = {
   PRO_MONTHLY: 'swift_invoice_pro_monthly',
+  PRO_ANNUAL: 'swift_invoice_pro_annual',
+} as const;
+
+const SUBSCRIPTION_PRODUCTS: Record<
+  string,
+  { tier: 'monthly_basic' | 'annual_basic'; durationMonths: number }
+> = {
+  [SUBSCRIPTION_SKUS.PRO_MONTHLY]: { tier: 'monthly_basic', durationMonths: 1 },
+  [SUBSCRIPTION_SKUS.PRO_ANNUAL]: { tier: 'annual_basic', durationMonths: 12 },
 };
+
+const SUBSCRIPTION_PRODUCT_IDS = Object.values(SUBSCRIPTION_SKUS);
 
 const FREE_TIER_LIMIT = 2;
 
@@ -103,6 +114,26 @@ const updateProfileWithFallback = async (userId: string, payloads: Array<Record<
 
   if (lastError) throw lastError;
 };
+
+const getSubscriptionProduct = (purchase: Purchase) => {
+  const productId = purchase.productId;
+
+  if (!productId) {
+    return SUBSCRIPTION_PRODUCTS[SUBSCRIPTION_SKUS.PRO_MONTHLY];
+  }
+
+  const product = SUBSCRIPTION_PRODUCTS[productId];
+  if (!product) {
+    throw new Error(`Unsupported subscription product: ${productId}`);
+  }
+
+  return product;
+};
+
+const findSubscriptionPurchase = (purchases: Purchase[]) =>
+  purchases.find((purchase) =>
+    purchase.productId ? SUBSCRIPTION_PRODUCT_IDS.includes(purchase.productId as any) : false
+  );
 
 export const subscriptionService = {
   isIapAvailable() {
@@ -346,13 +377,14 @@ export const subscriptionService = {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      const product = getSubscriptionProduct(purchase);
       const expiresAt = new Date();
-      expiresAt.setMonth(expiresAt.getMonth() + 1);
+      expiresAt.setMonth(expiresAt.getMonth() + product.durationMonths);
       const expiresAtISO = expiresAt.toISOString();
 
       await updateProfileWithFallback(user.id, [
         {
-          subscription_tier: 'monthly_basic',
+          subscription_tier: product.tier,
           subscription_status: 'active',
           subscription_ends_at: expiresAtISO,
         },
@@ -363,7 +395,7 @@ export const subscriptionService = {
           google_purchase_token: purchase.purchaseToken || purchase.transactionId,
         },
         {
-          subscription_tier: 'monthly_basic',
+          subscription_tier: product.tier,
           subscription_status: 'active',
         },
         {
@@ -395,7 +427,7 @@ export const subscriptionService = {
       console.log('Available purchases:', purchases);
 
       if (purchases.length > 0) {
-        const proPurchase = purchases.find((p) => p.productId === SUBSCRIPTION_SKUS.PRO_MONTHLY);
+        const proPurchase = findSubscriptionPurchase(purchases);
 
         if (proPurchase) {
           await this.verifyPurchase(proPurchase);
@@ -418,38 +450,10 @@ export const subscriptionService = {
       const iap = requireIapModule();
 
       const purchases = await iap.getAvailablePurchases();
-      const proPurchase = purchases.find((p) => p.productId === SUBSCRIPTION_SKUS.PRO_MONTHLY);
+      const proPurchase = findSubscriptionPurchase(purchases);
 
       if (!proPurchase) {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('subscription_tier')
-          .eq('id', user.id)
-          .single();
-
-        if (profile && isPaidTier(profile.subscription_tier)) {
-          await updateProfileWithFallback(user.id, [
-            {
-              subscription_tier: 'free',
-              subscription_status: 'expired',
-              subscription_ends_at: null,
-            },
-            {
-              subscription_tier: 'free',
-              subscription_status: 'expired',
-              subscription_expires_at: null,
-            },
-            {
-              subscription_tier: 'free',
-              subscription_status: 'expired',
-            },
-          ]);
-        }
+        return;
       } else {
         await this.verifyPurchase(proPurchase);
       }

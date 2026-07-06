@@ -217,6 +217,25 @@ export default function NewInvoiceScreen({ navigation }: NewInvoiceScreenProps) 
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        <View style={styles.pageIntroCard}>
+          <Text style={styles.pageIntroKicker}>INVOICE STUDIO</Text>
+          <Text style={styles.pageIntroTitle}>Build A Client-Ready Invoice</Text>
+          <Text style={styles.pageIntroSubtitle}>
+            Add customer details, define line items, and send polished invoices faster.
+          </Text>
+        </View>
+
+        <View style={styles.quickStatsRow}>
+          <View style={styles.quickStatCard}>
+            <Text style={styles.quickStatValue}>{items.length}</Text>
+            <Text style={styles.quickStatLabel}>Line Items</Text>
+          </View>
+          <View style={styles.quickStatCard}>
+            <Text style={styles.quickStatValue}>{formatCurrency(calculateTotal())}</Text>
+            <Text style={styles.quickStatLabel}>Draft Total</Text>
+          </View>
+        </View>
+
         {/* Customer Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Customer</Text>
@@ -611,92 +630,157 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 14,
     paddingBottom: 100,
+  },
+  pageIntroCard: {
+    backgroundColor: theme.colors.cardStrong,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    marginBottom: 12,
+  },
+  pageIntroKicker: {
+    color: theme.colors.accent,
+    fontSize: 11,
+    letterSpacing: 1.4,
+    marginBottom: 7,
+    fontFamily: theme.fonts.body,
+  },
+  pageIntroTitle: {
+    color: theme.colors.text,
+    fontSize: 28,
+    lineHeight: 32,
+    marginBottom: 8,
+    fontFamily: theme.fonts.headline,
+  },
+  pageIntroSubtitle: {
+    color: theme.colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: theme.fonts.body,
+  },
+  quickStatsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 14,
+  },
+  quickStatCard: {
+    flex: 1,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  quickStatValue: {
+    color: theme.colors.text,
+    fontSize: 20,
+    marginBottom: 4,
+    fontFamily: theme.fonts.headline,
+  },
+  quickStatLabel: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontFamily: theme.fonts.body,
   },
   section: {
     backgroundColor: theme.colors.card,
-    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
     color: theme.colors.text,
-    marginBottom: 16,
+    marginBottom: 14,
+    fontFamily: theme.fonts.headline,
   },
   input: {
     backgroundColor: theme.colors.inputBackground,
-    padding: 12,
-    borderRadius: 8,
-    fontSize: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    fontSize: 15,
     marginBottom: 12,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: theme.colors.inputBorder,
     color: theme.colors.text,
+    fontFamily: theme.fonts.body,
   },
   textArea: {
-    height: 80,
+    height: 84,
     textAlignVertical: 'top',
   },
   selectButton: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.accent,
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   selectButtonText: {
-    color: '#fff',
+    color: '#FBF7EF',
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: theme.fonts.body,
   },
   orText: {
     textAlign: 'center',
     color: theme.colors.placeholder,
     marginVertical: 8,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    fontFamily: theme.fonts.body,
   },
   selectedCustomer: {
     padding: 12,
     backgroundColor: theme.colors.primaryLight,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: theme.colors.primary,
   },
   selectedCustomerName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
     color: theme.colors.text,
     marginBottom: 4,
+    fontFamily: theme.fonts.headline,
   },
   selectedCustomerDetail: {
     fontSize: 14,
     color: theme.colors.textSecondary,
     marginBottom: 2,
+    fontFamily: theme.fonts.body,
   },
   changeButton: {
-    color: theme.colors.primary,
-    fontSize: 14,
+    color: theme.colors.accent,
+    fontSize: 13,
     marginTop: 8,
+    fontFamily: theme.fonts.body,
   },
   addButton: {
-    color: theme.colors.primary,
+    color: theme.colors.accent,
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: theme.fonts.body,
   },
   itemCard: {
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 12,
     marginBottom: 12,
+    backgroundColor: theme.colors.cardStrong,
   },
   itemHeader: {
     flexDirection: 'row',
@@ -704,13 +788,14 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginBottom: 12,
   },
   itemNumber: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
     color: theme.colors.text,
+    fontFamily: theme.fonts.headline,
   },
   removeButton: {
     color: theme.colors.error,
-    fontSize: 14,
+    fontSize: 13,
+    fontFamily: theme.fonts.body,
   },
   itemRow: {
     flexDirection: 'row',
@@ -724,41 +809,50 @@ const createStyles = (theme: any) => StyleSheet.create({
   itemAmount: {
     flex: 1,
     justifyContent: 'center',
+    backgroundColor: theme.colors.card,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
   itemAmountLabel: {
     fontSize: 10,
     color: theme.colors.placeholder,
     marginBottom: 4,
+    fontFamily: theme.fonts.body,
   },
   itemAmountValue: {
     fontSize: 14,
-    fontWeight: '600',
     color: theme.colors.text,
+    fontFamily: theme.fonts.headline,
   },
   inputGroup: {
     marginBottom: 16,
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: theme.colors.textSecondary,
     marginBottom: 8,
+    fontFamily: theme.fonts.body,
   },
   dateDisplay: {
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.cardStrong,
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
   dateText: {
     fontSize: 16,
     color: theme.colors.text,
-    fontWeight: '500',
+    fontFamily: theme.fonts.headline,
   },
   dateSubtext: {
     fontSize: 12,
     color: theme.colors.placeholder,
     marginTop: 4,
+    fontFamily: theme.fonts.body,
   },
   daysPickerRow: {
     flexDirection: 'row',
@@ -769,26 +863,27 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: theme.colors.card,
-    borderWidth: 2,
+    borderRadius: 999,
+    backgroundColor: theme.colors.cardStrong,
+    borderWidth: 1,
     borderColor: theme.colors.border,
     alignItems: 'center',
   },
   daysButtonText: {
     fontSize: 13,
     color: theme.colors.textSecondary,
-    fontWeight: '500',
+    fontFamily: theme.fonts.body,
   },
   daysButtonActive: {
-    color: theme.colors.primary,
-    fontWeight: 'bold',
+    color: theme.colors.accent,
   },
   totalsSection: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 12,
+    backgroundColor: theme.colors.cardStrong,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   totalRow: {
     flexDirection: 'row',
@@ -798,42 +893,43 @@ const createStyles = (theme: any) => StyleSheet.create({
   totalLabel: {
     fontSize: 14,
     color: theme.colors.textSecondary,
+    fontFamily: theme.fonts.body,
   },
   totalValue: {
     fontSize: 14,
     color: theme.colors.text,
-    fontWeight: '500',
+    fontFamily: theme.fonts.body,
   },
   grandTotalRow: {
-    borderTopWidth: 2,
+    borderTopWidth: 1,
     borderTopColor: theme.colors.border,
     paddingTop: 12,
     marginTop: 12,
     marginBottom: 0,
   },
   grandTotalLabel: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
     color: theme.colors.text,
+    fontFamily: theme.fonts.headline,
   },
   grandTotalValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.primary,
+    fontSize: 28,
+    color: theme.colors.accent,
+    fontFamily: theme.fonts.headline,
   },
   bottomActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
     padding: 16,
     paddingBottom: 48,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.background,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
   },
   button: {
     flex: 1,
-    padding: 16,
-    borderRadius: 8,
+    padding: 15,
+    borderRadius: 12,
     alignItems: 'center',
   },
   buttonPrimary: {
@@ -842,20 +938,20 @@ const createStyles = (theme: any) => StyleSheet.create({
   buttonSecondary: {
     backgroundColor: theme.colors.card,
     borderWidth: 1,
-    borderColor: theme.colors.primary,
+    borderColor: theme.colors.accent,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonPrimaryText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#F8F2E8',
+    fontSize: 15,
+    fontFamily: theme.fonts.body,
   },
   buttonSecondaryText: {
-    color: theme.colors.primary,
-    fontSize: 16,
-    fontWeight: '600',
+    color: theme.colors.accent,
+    fontSize: 15,
+    fontFamily: theme.fonts.body,
   },
   modalOverlay: {
     flex: 1,
@@ -869,24 +965,26 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderRadius: 20,
     width: '100%',
     maxHeight: '70%',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: 18,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 24,
     color: theme.colors.text,
+    fontFamily: theme.fonts.headline,
   },
   modalClose: {
     fontSize: 28,
     color: theme.colors.textSecondary,
-    fontWeight: '300',
+    fontFamily: theme.fonts.body,
   },
   customerItem: {
     flexDirection: 'row',
@@ -899,15 +997,16 @@ const createStyles = (theme: any) => StyleSheet.create({
     padding: 16,
   },
   customerItemName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
     color: theme.colors.text,
     marginBottom: 4,
+    fontFamily: theme.fonts.headline,
   },
   customerItemDetail: {
     fontSize: 14,
     color: theme.colors.textSecondary,
     marginBottom: 2,
+    fontFamily: theme.fonts.body,
   },
   customerDeleteButton: {
     padding: 16,
@@ -921,43 +1020,46 @@ const createStyles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
   },
   emptyListText: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
+    fontSize: 18,
+    color: theme.colors.text,
     marginBottom: 8,
+    fontFamily: theme.fonts.headline,
   },
   emptyListSubtext: {
     fontSize: 14,
     color: theme.colors.placeholder,
     textAlign: 'center',
+    fontFamily: theme.fonts.body,
   },
   datePickerButton: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.cardStrong,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 8,
-    padding: 16,
+    borderRadius: 10,
+    padding: 14,
   },
   datePickerButtonText: {
     fontSize: 16,
     color: theme.colors.text,
+    fontFamily: theme.fonts.body,
   },
   datePickerIcon: {
     fontSize: 20,
   },
   customDaysButton: {
     flex: 1,
-    backgroundColor: theme.colors.text,
+    backgroundColor: theme.colors.accent,
     borderWidth: 1,
-    borderColor: theme.colors.text,
+    borderColor: theme.colors.accent,
   },
   customDaysInput: {
-    color: theme.colors.background,
+    color: '#FBF7EF',
     fontSize: 14,
-    fontWeight: '600',
     textAlign: 'center',
     padding: 0,
+    fontFamily: theme.fonts.body,
   },
 });
