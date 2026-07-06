@@ -324,7 +324,7 @@ export const subscriptionService = {
     }
   },
 
-  // Upgrade to Pro (Google Play Billing integration)
+  // Upgrade to Pro through the platform app store billing integration.
   async upgradeToPro() {
     try {
       const ready = await initIAP();
@@ -342,7 +342,7 @@ export const subscriptionService = {
 
       if (!subscriptions || subscriptions.length === 0) {
         throw new Error(
-          'Subscription product not found. Please ensure swift_invoice_pro_monthly is configured in Google Play Console.'
+          'Subscription product not found. Please ensure swift_invoice_pro_monthly is configured in the app store console.'
         );
       }
 
@@ -442,7 +442,7 @@ export const subscriptionService = {
     }
   },
 
-  // Check subscription status from Google Play
+  // Check subscription status from the platform app store.
   async syncSubscriptionStatus() {
     try {
       const ready = await initIAP();

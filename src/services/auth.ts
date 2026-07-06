@@ -153,6 +153,19 @@ export const authService = {
     if (error) throw error;
   },
 
+  async deleteAccount() {
+    const { error } = await supabase.functions.invoke('delete-account', {
+      body: {},
+    });
+
+    if (error) throw error;
+
+    const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
+    if (signOutError) {
+      console.warn('Local sign out after account deletion failed:', signOutError);
+    }
+  },
+
   async resetPassword(email: string) {
     const { error } = await supabase.auth.resetPasswordForEmail(email);
     if (error) throw error;

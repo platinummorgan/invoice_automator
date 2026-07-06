@@ -75,7 +75,7 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
           <Text style={styles.paragraph}>
             Swift Invoice offers a free tier and optional paid subscription plans.
             Subscription features, pricing, billing terms, and cancellation details
-            are provided in-app and through Google Play.
+            are provided in-app and through your platform app store.
           </Text>
 
           <Text style={styles.sectionTitle}>7. Email Delivery</Text>

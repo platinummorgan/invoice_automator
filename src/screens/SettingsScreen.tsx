@@ -86,6 +86,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [showTerms, setShowTerms] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
+  const [restoringPurchases, setRestoringPurchases] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -234,6 +236,27 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRestorePurchases = async () => {
+    try {
+      setRestoringPurchases(true);
+      const restored = await subscriptionService.restorePurchases();
+      await loadSubscription();
+      Alert.alert(
+        restored ? 'Purchases Restored' : 'No Purchases Found',
+        restored
+          ? 'Your active subscription has been restored.'
+          : 'No active Swift Invoice subscription was found for this store account.'
+      );
+    } catch (error: any) {
+      Alert.alert(
+        'Restore Failed',
+        error.message || 'Unable to restore purchases. Please try again.'
+      );
+    } finally {
+      setRestoringPurchases(false);
     }
   };
 
@@ -489,6 +512,46 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     );
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This permanently deletes your account, business profile, customers, invoices, payment records, and uploaded logo. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Permanently Delete Account?',
+              'Your Swift Invoice account and data will be deleted immediately.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete Account',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      setDeletingAccount(true);
+                      await authService.deleteAccount();
+                    } catch (error: any) {
+                      Alert.alert(
+                        'Delete Account Failed',
+                        error?.message || 'Unable to delete your account. Please contact support.'
+                      );
+                    } finally {
+                      setDeletingAccount(false);
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -535,12 +598,26 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                     <Text style={styles.upgradeButtonText}>Upgrade to Pro - $3.99/month</Text>
                     <Text style={styles.upgradeSubtext}>Unlimited invoices • Priority support</Text>
                   </TouchableOpacity>
+                  <Text style={styles.subscriptionDisclosure}>
+                    Monthly subscription renews automatically unless cancelled in your App Store or Google Play account settings before renewal.
+                  </Text>
                 </>
               ) : (
                 <Text style={styles.subscriptionInfo}>
                   Unlimited invoices • All features unlocked
                 </Text>
               )}
+              <TouchableOpacity
+                style={[styles.restoreButton, restoringPurchases && styles.actionButtonDisabled]}
+                onPress={handleRestorePurchases}
+                disabled={restoringPurchases}
+              >
+                {restoringPurchases ? (
+                  <ActivityIndicator color={theme.colors.primary} />
+                ) : (
+                  <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -799,10 +876,23 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.logoutButton}
+          style={[styles.logoutButton, deletingAccount && styles.actionButtonDisabled]}
           onPress={handleLogout}
+          disabled={deletingAccount}
         >
           <Text style={styles.logoutButtonText}>Logout</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.deleteAccountButton, deletingAccount && styles.actionButtonDisabled]}
+          onPress={handleDeleteAccount}
+          disabled={deletingAccount}
+        >
+          {deletingAccount ? (
+            <ActivityIndicator color={theme.colors.error} />
+          ) : (
+            <Text style={styles.deleteAccountButtonText}>Delete Account</Text>
+          )}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -1158,6 +1248,24 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 15,
     fontFamily: theme.fonts.body,
   },
+  deleteAccountButton: {
+    backgroundColor: theme.colors.card,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.error,
+  },
+  deleteAccountButtonText: {
+    color: theme.colors.error,
+    fontSize: 15,
+    fontWeight: '700',
+    fontFamily: theme.fonts.body,
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
   linkRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1245,6 +1353,28 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     opacity: 0.9,
+    fontFamily: theme.fonts.body,
+  },
+  subscriptionDisclosure: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 10,
+    fontFamily: theme.fonts.body,
+  },
+  restoreButton: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 10,
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 12,
+    backgroundColor: theme.colors.card,
+  },
+  restoreButtonText: {
+    color: theme.colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
     fontFamily: theme.fonts.body,
   },
   themeOptions: {

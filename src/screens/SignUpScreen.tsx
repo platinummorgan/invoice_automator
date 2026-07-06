@@ -42,6 +42,8 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
     }).start();
   }, []);
 
+  const showGoogleSignIn = Platform.OS !== 'ios' && googleAvailable;
+
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
@@ -184,28 +186,30 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               )}
             </TouchableOpacity>
 
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR</Text>
-              <View style={styles.dividerLine} />
-            </View>
+            {showGoogleSignIn && (
+              <>
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>OR</Text>
+                  <View style={styles.dividerLine} />
+                </View>
 
-            <TouchableOpacity
-              style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
-              onPress={handleGoogleSignIn}
-              disabled={loading || googleLoading || !googleAvailable}
-            >
-              {googleLoading ? (
-                <ActivityIndicator color={theme.colors.text} />
-              ) : (
-                <>
-                  <GoogleIcon size={20} />
-                  <Text style={styles.googleButtonText}>
-                    {googleAvailable ? 'Continue with Google' : 'Google Sign-In requires dev build'}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+                  onPress={handleGoogleSignIn}
+                  disabled={loading || googleLoading}
+                >
+                  {googleLoading ? (
+                    <ActivityIndicator color={theme.colors.text} />
+                  ) : (
+                    <>
+                      <GoogleIcon size={20} />
+                      <Text style={styles.googleButtonText}>Continue with Google</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
 
             <TouchableOpacity
               onPress={() => navigation.goBack()}
