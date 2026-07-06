@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Image,
   Switch,
@@ -42,6 +43,10 @@ interface SettingsScreenProps {
 }
 
 const LOGO_BUCKET = 'logos';
+const IOS_SUBSCRIPTION_MANAGEMENT_URL = 'https://apps.apple.com/account/subscriptions';
+const IOS_REFUND_REQUEST_URL = 'https://support.apple.com/en-us/HT204084';
+const ANDROID_SUBSCRIPTION_MANAGEMENT_URL =
+  'https://play.google.com/store/account/subscriptions?package=com.invoiceautomator.app';
 const INVOICE_TEMPLATE_OPTIONS: Array<{ value: InvoiceTemplate; title: string; subtitle: string }> = [
   { value: 'classic', title: 'Classic', subtitle: 'Balanced and professional' },
   { value: 'painter', title: 'Painter', subtitle: 'Bold layout for service trades' },
@@ -269,6 +274,44 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     } finally {
       setRestoringPurchases(false);
     }
+  };
+
+  const openExternalUrl = async (url: string, fallbackMessage: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        throw new Error('Unable to open URL.');
+      }
+      await Linking.openURL(url);
+    } catch (error) {
+      Alert.alert('Unable to Open Link', fallbackMessage);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    await openExternalUrl(
+      Platform.OS === 'ios'
+        ? IOS_SUBSCRIPTION_MANAGEMENT_URL
+        : ANDROID_SUBSCRIPTION_MANAGEMENT_URL,
+      Platform.OS === 'ios'
+        ? 'Open Settings > Apple ID > Subscriptions to manage or cancel your subscription.'
+        : 'Open Google Play > Payments & subscriptions > Subscriptions to manage or cancel your subscription.'
+    );
+  };
+
+  const handleRequestRefund = async () => {
+    if (Platform.OS !== 'ios') {
+      await openExternalUrl(
+        ANDROID_SUBSCRIPTION_MANAGEMENT_URL,
+        'Open Google Play > Payments & subscriptions to manage subscription billing.'
+      );
+      return;
+    }
+
+    await openExternalUrl(
+      IOS_REFUND_REQUEST_URL,
+      'Visit Apple Support and search for "request a refund" to request help with an App Store purchase.'
+    );
   };
 
   const getLogoPath = (userId: string) => `${userId}/logo`;
@@ -526,7 +569,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
-      'This permanently deletes your account, business profile, customers, invoices, payment records, and uploaded logo. This cannot be undone.',
+      'This permanently deletes your account, business profile, customers, invoices, payment records, and uploaded logo. If you have an active App Store or Google Play subscription, deleting your account does not cancel store billing. Cancel it in your store account settings before deleting if you no longer want to be billed. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -535,7 +578,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onPress: () => {
             Alert.alert(
               'Permanently Delete Account?',
-              'Your Swift Invoice account and data will be deleted immediately.',
+              'Your Swift Invoice account and data will be deleted immediately. Store subscriptions are managed separately by Apple or Google and may continue unless cancelled in your store account.',
               [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -610,13 +653,18 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                     <Text style={styles.upgradeSubtext}>Unlimited invoices • Priority support</Text>
                   </TouchableOpacity>
                   <Text style={styles.subscriptionDisclosure}>
-                    Monthly subscription renews automatically unless cancelled in your App Store or Google Play account settings before renewal.
+                    Monthly subscription renews automatically unless cancelled in your App Store or Google Play account settings before renewal. You can manage or cancel store billing at any time.
                   </Text>
                 </>
               ) : (
-                <Text style={styles.subscriptionInfo}>
-                  Unlimited invoices • All features unlocked
-                </Text>
+                <>
+                  <Text style={styles.subscriptionInfo}>
+                    Unlimited invoices • All features unlocked
+                  </Text>
+                  <Text style={styles.subscriptionDisclosure}>
+                    Store billing is managed by your App Store or Google Play account. Deleting your Swift Invoice account does not cancel store billing.
+                  </Text>
+                </>
               )}
               <TouchableOpacity
                 style={[styles.restoreButton, restoringPurchases && styles.actionButtonDisabled]}
@@ -628,6 +676,20 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                 ) : (
                   <Text style={styles.restoreButtonText}>Restore Purchases</Text>
                 )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.subscriptionLinkButton}
+                onPress={handleManageSubscription}
+              >
+                <Text style={styles.subscriptionLinkButtonText}>Manage Subscription</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.subscriptionLinkButton}
+                onPress={handleRequestRefund}
+              >
+                <Text style={styles.subscriptionLinkButtonText}>
+                  {Platform.OS === 'ios' ? 'Request App Store Refund' : 'Manage Google Play Billing'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1383,6 +1445,17 @@ const createStyles = (theme: any) => StyleSheet.create({
     backgroundColor: theme.colors.card,
   },
   restoreButtonText: {
+    color: theme.colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: theme.fonts.body,
+  },
+  subscriptionLinkButton: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  subscriptionLinkButtonText: {
     color: theme.colors.primary,
     fontSize: 14,
     fontWeight: '600',
