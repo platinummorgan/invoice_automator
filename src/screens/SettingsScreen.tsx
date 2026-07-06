@@ -242,6 +242,17 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const handleRestorePurchases = async () => {
     try {
       setRestoringPurchases(true);
+      const accountStatus = await subscriptionService.getSubscriptionStatus();
+
+      if (accountStatus.isPro) {
+        setSubscriptionStatus(accountStatus);
+        Alert.alert(
+          'Pro Active',
+          'Your Swift Invoice account already has Pro access on this device.'
+        );
+        return;
+      }
+
       const restored = await subscriptionService.restorePurchases();
       await loadSubscription();
       Alert.alert(
