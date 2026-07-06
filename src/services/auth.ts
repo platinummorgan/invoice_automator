@@ -1,3 +1,5 @@
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
 import { supabase } from './supabase';
 import { Profile } from '../types';
 
@@ -7,11 +9,36 @@ type GoogleSigninClient = {
   signIn: () => Promise<any>;
 };
 
+type AppleAuthModule = {
+  AppleAuthenticationScope: {
+    FULL_NAME: number;
+    EMAIL: number;
+  };
+  AppleAuthenticationCredentialState: {
+    AUTHORIZED: number;
+  };
+  isAvailableAsync: () => Promise<boolean>;
+  signInAsync: (params: { requestedScopes: number[] }) => Promise<{
+    identityToken?: string | null;
+    fullName?: {
+      givenName?: string | null;
+      familyName?: string | null;
+    } | null;
+    email?: string | null;
+  }>;
+};
+
 let cachedGoogleSignin: GoogleSigninClient | null = null;
 let googleSigninInitAttempted = false;
+let cachedAppleAuth: AppleAuthModule | null = null;
+let appleAuthInitAttempted = false;
 
 const GOOGLE_WEB_CLIENT_ID =
   '884636010114-k636nc5f4397hve5vmfj765m9o9rsbgj.apps.googleusercontent.com';
+const APP_AUTH_REDIRECT_URI = AuthSession.makeRedirectUri({
+  scheme: 'com.invoiceautomator.app',
+  path: 'auth/callback',
+});
 
 function getGoogleSigninClient(): GoogleSigninClient | null {
   if (cachedGoogleSignin) return cachedGoogleSignin;
@@ -39,9 +66,106 @@ function getGoogleSigninClient(): GoogleSigninClient | null {
   }
 }
 
+function getAppleAuthModule(): AppleAuthModule | null {
+  if (cachedAppleAuth) return cachedAppleAuth;
+  if (appleAuthInitAttempted) return null;
+
+  appleAuthInitAttempted = true;
+
+  try {
+    const appleAuth = require('expo-apple-authentication') as AppleAuthModule;
+    cachedAppleAuth = appleAuth;
+    return cachedAppleAuth;
+  } catch (error) {
+    console.warn('Apple Sign-In native module unavailable.');
+    return null;
+  }
+}
+
+const ensureProfileForOAuthUser = async (
+  user: any,
+  profile: { fullName?: string | null; email?: string | null }
+) => {
+  const { data: existingProfile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', user.id)
+    .single();
+
+  if (existingProfile) return;
+
+  const fallbackName = profile.fullName || user.email?.split('@')[0] || 'User';
+  const { error: profileError } = await supabase.from('profiles').insert({
+    id: user.id,
+    full_name: fallbackName,
+    email: profile.email || user.email,
+  });
+
+  if (profileError) {
+    console.error('Error creating profile:', profileError);
+  }
+};
+
+const getAuthCodeFromRedirectUrl = (redirectUrl: string) => {
+  const parsedUrl = new URL(redirectUrl);
+  const queryCode = parsedUrl.searchParams.get('code');
+
+  if (queryCode) return queryCode;
+
+  if (parsedUrl.hash) {
+    return new URLSearchParams(parsedUrl.hash.replace(/^#/, '')).get('code');
+  }
+
+  return null;
+};
+
+const signInWithGoogleBrowser = async () => {
+  const { data: oauthData, error: oauthError } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: APP_AUTH_REDIRECT_URI,
+      skipBrowserRedirect: true,
+    },
+  });
+
+  if (oauthError) throw oauthError;
+  if (!oauthData.url) {
+    throw new Error('Unable to start Google Sign-In');
+  }
+
+  const result = await WebBrowser.openAuthSessionAsync(oauthData.url, APP_AUTH_REDIRECT_URI);
+
+  if (result.type !== 'success') {
+    throw new Error('Sign-in was cancelled');
+  }
+
+  const authCode = getAuthCodeFromRedirectUrl(result.url);
+  if (!authCode) {
+    throw new Error('No authorization code received from Google');
+  }
+
+  const { data, error } = await supabase.auth.exchangeCodeForSession(authCode);
+  if (error) throw error;
+
+  if (data.user) {
+    await ensureProfileForOAuthUser(data.user, {
+      fullName: data.user.user_metadata?.full_name || data.user.user_metadata?.name,
+      email: data.user.email,
+    });
+  }
+
+  return data;
+};
+
 export const authService = {
   isGoogleSignInAvailable() {
-    return !!getGoogleSigninClient();
+    return true;
+  },
+
+  async isAppleSignInAvailable() {
+    const appleAuth = getAppleAuthModule();
+    if (!appleAuth) return false;
+    return appleAuth.isAvailableAsync();
   },
 
   async signInWithGoogle() {
@@ -50,9 +174,7 @@ export const authService = {
       const GoogleSignin = getGoogleSigninClient();
 
       if (!GoogleSignin) {
-        throw new Error(
-          'Google Sign-In is unavailable in Expo Go. Use email/password locally, or run a custom dev build.'
-        );
+        return await signInWithGoogleBrowser();
       }
 
       // Check if Google Play Services are available
@@ -79,28 +201,11 @@ export const authService = {
         throw error;
       }
 
-      // Ensure profile exists for Google users (trigger might not fire for OAuth)
       if (data.user) {
-        const { data: existingProfile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', data.user.id)
-          .single();
-
-        if (!existingProfile) {
-          console.log('Creating profile for Google user...');
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-              id: data.user.id,
-              full_name: userInfo.data.user?.name || data.user.email?.split('@')[0] || 'User',
-              email: data.user.email,
-            });
-
-          if (profileError) {
-            console.error('Error creating profile:', profileError);
-          }
-        }
+        await ensureProfileForOAuthUser(data.user, {
+          fullName: userInfo.data.user?.name,
+          email: data.user.email,
+        });
       }
 
       console.log('Google Sign-In successful!');
@@ -117,6 +222,59 @@ export const authService = {
         throw new Error('Google Play Services not available');
       }
       
+      throw error;
+    }
+  },
+
+  async signInWithApple() {
+    try {
+      const appleAuth = getAppleAuthModule();
+      if (!appleAuth) {
+        throw new Error('Sign in with Apple is unavailable on this device.');
+      }
+
+      const available = await appleAuth.isAvailableAsync();
+      if (!available) {
+        throw new Error('Sign in with Apple is unavailable on this device.');
+      }
+
+      const credential = await appleAuth.signInAsync({
+        requestedScopes: [
+          appleAuth.AppleAuthenticationScope.FULL_NAME,
+          appleAuth.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        throw new Error('No Apple identity token received');
+      }
+
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+      });
+
+      if (error) throw error;
+
+      const fullName = [credential.fullName?.givenName, credential.fullName?.familyName]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
+      if (data.user) {
+        await ensureProfileForOAuthUser(data.user, {
+          fullName,
+          email: credential.email || data.user.email,
+        });
+      }
+
+      return data;
+    } catch (error: any) {
+      if (error?.code === 'ERR_REQUEST_CANCELED') {
+        throw new Error('Sign-in was cancelled');
+      }
+
+      console.error('Apple Sign-In Error:', error);
       throw error;
     }
   },

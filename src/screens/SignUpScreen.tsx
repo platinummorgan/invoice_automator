@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { authService } from '../services/auth';
 import { useTheme } from '../contexts/ThemeContext';
 import { GoogleIcon } from '../components/GoogleIcon';
@@ -31,10 +32,15 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleAvailable, setGoogleAvailable] = useState(true);
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(false);
   const [introAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     setGoogleAvailable(authService.isGoogleSignInAvailable());
+    authService.isAppleSignInAvailable().then(setAppleAvailable).catch(() => {
+      setAppleAvailable(false);
+    });
     Animated.timing(introAnim, {
       toValue: 1,
       duration: 550,
@@ -42,7 +48,9 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
     }).start();
   }, []);
 
-  const showGoogleSignIn = Platform.OS !== 'ios' && googleAvailable;
+  const showGoogleSignIn = googleAvailable;
+  const showAppleSignIn = Platform.OS === 'ios' && appleAvailable;
+  const showStoreSignIn = showGoogleSignIn || showAppleSignIn;
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
@@ -50,11 +58,25 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
       await authService.signInWithGoogle();
       onSignUpSuccess();
     } catch (error: any) {
-      if (error.message !== 'Google sign-in was cancelled or failed') {
+      if (!/cancelled/i.test(error.message || '')) {
         Alert.alert('Google Sign-In Failed', error.message || 'Please try again');
       }
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    setAppleLoading(true);
+    try {
+      await authService.signInWithApple();
+      onSignUpSuccess();
+    } catch (error: any) {
+      if (!/cancelled/i.test(error.message || '')) {
+        Alert.alert('Apple Sign-In Failed', error.message || 'Please try again');
+      }
+    } finally {
+      setAppleLoading(false);
     }
   };
 
@@ -177,7 +199,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
             <TouchableOpacity
               style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleSignUp}
-              disabled={loading || googleLoading}
+              disabled={loading || googleLoading || appleLoading}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
@@ -186,7 +208,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               )}
             </TouchableOpacity>
 
-            {showGoogleSignIn && (
+            {showStoreSignIn && (
               <>
                 <View style={styles.divider}>
                   <View style={styles.dividerLine} />
@@ -194,26 +216,38 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
                   <View style={styles.dividerLine} />
                 </View>
 
-                <TouchableOpacity
-                  style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
-                  onPress={handleGoogleSignIn}
-                  disabled={loading || googleLoading}
-                >
-                  {googleLoading ? (
-                    <ActivityIndicator color={theme.colors.text} />
-                  ) : (
-                    <>
-                      <GoogleIcon size={20} />
-                      <Text style={styles.googleButtonText}>Continue with Google</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                {showAppleSignIn && (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                    cornerRadius={12}
+                    style={[styles.appleButton, appleLoading && styles.buttonDisabled]}
+                    onPress={handleAppleSignIn}
+                  />
+                )}
+
+                {showGoogleSignIn && (
+                  <TouchableOpacity
+                    style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+                    onPress={handleGoogleSignIn}
+                    disabled={loading || googleLoading || appleLoading}
+                  >
+                    {googleLoading ? (
+                      <ActivityIndicator color={theme.colors.text} />
+                    ) : (
+                      <>
+                        <GoogleIcon size={20} />
+                        <Text style={styles.googleButtonText}>Continue with Google</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
               </>
             )}
 
             <TouchableOpacity
               onPress={() => navigation.goBack()}
-              disabled={loading || googleLoading}
+              disabled={loading || googleLoading || appleLoading}
             >
               <Text style={styles.linkText}>
                 Already have an account? <Text style={styles.linkTextBold}>Login</Text>
@@ -394,6 +428,12 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     gap: 12,
+    marginTop: 10,
+  },
+  appleButton: {
+    width: '100%',
+    height: 48,
+    marginBottom: 10,
   },
   googleButtonText: {
     color: theme.colors.text,
