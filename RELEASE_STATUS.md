@@ -38,12 +38,12 @@ TypeScript, five app regression suites and three shared billing verifier tests p
 
 The owner tested license purchase, restore, cancellation and return to Free after expiry. Google acknowledged the test purchase. Saved payment details were confirmed to appear on invoices; additional link-label and export-load improvements need the new build's device check.
 
-All four migrations match remote history. The seven billing/scheduler function bodies match the local migrations; billing tables have RLS and no client grants. Deployed billing Edge Function source matches local source. Cron is active every five minutes with recent HTTP 200 responses.
+All four migrations match remote history. The seven billing/scheduler function bodies match the local migrations; billing tables have RLS and no client grants. All nine deployed Edge Function entrypoints and shared billing helpers match repository source; the pre-existing delete-account function was recovered into main without redeployment. Cron is active every five minutes with recent HTTP 200 responses.
 
 ## Before production rollout
 
 - Finish the final AAB, inspect Play validation and test the final build on a device.
-- Complete sign-in/reset, draft save/reopen, PDF/payment-link and record-payment checks.
+- Owner confirmed draft save/reopen, payment recording and sign-out/sign-in on the current test build. Recheck the final build, including password reset and the improved PDF/payment links.
 - Verify real Google test renewal and refund/revocation; local simulations alone do not close these checks.
 - Resolve Diagnostics sharing disclosure: current submitted answer is collected, not shared, non-ephemeral, required, analytics; the sharing exemption has not been confirmed.
 - Coordinate public billing enablement and full profile protection with the compatible app rollout. They remain deliberately test-scoped; see supabase/README.md.

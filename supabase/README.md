@@ -17,7 +17,7 @@ The database existed before these migrations. Root SQL files are historical setu
 
 ## Deployed billing services
 
-Source downloaded from production matched all four local files for verify-google-purchase, its entitlement helper, the shared verifier and reconcile-google-purchases. Both functions use internal authentication; config.toml records verify_jwt=false. Other legacy deployed functions are outside this billing rollout.
+Source downloaded from production matched all four local files for verify-google-purchase, its entitlement helper, the shared verifier and reconcile-google-purchases. Both functions use internal authentication; config.toml records verify_jwt=false. A subsequent full download verified all nine deployed function entrypoints and the shared billing helpers against repository source. The existing delete-account source was recovered into main without invoking or redeploying it. config.toml records the observed gateway JWT settings for all nine functions. The Android candidate still uses the support-assisted deletion request page.
 
 The google-play-reconciliation cron job is active every five minutes. Recent retained HTTP responses were 200. Its credential is stored in Vault and Edge Function secrets; never commit it. Terminal legacy tokens are excluded from automatic retries without downgrading legacy access.
 

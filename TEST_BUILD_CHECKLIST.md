@@ -55,3 +55,7 @@ Actual Google renewal and refund/revocation testing remain before production rol
 ## Final payment-link checks
 
 Select PayPal without details and save: expect a clear validation message. Paste the real recipient payment link, save, reopen Settings, export a new PDF and tap the link as the customer. Repeat with Venmo or another provider. Check Zelle/bank instructions remain readable. A failed profile load must stop export rather than omit payment details. Do not send money during this check.
+
+## Owner confirmation — September 20, 2026
+
+The owner confirmed saving/reopening drafts, recording a payment, and signing out/back in all worked on the current test build. Final-build acceptance and live renewal/refund checks remain separate.

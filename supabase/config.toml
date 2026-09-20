@@ -5,3 +5,25 @@ verify_jwt = false
 
 [functions.reconcile-google-purchases]
 verify_jwt = false
+
+# Existing deployed endpoints; record gateway settings without redeploying.
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.send-feedback]
+verify_jwt = true
+
+[functions.create-payment-link]
+verify_jwt = true
+
+[functions.send-reminders]
+verify_jwt = true
+
+[functions.send-invoice-email]
+verify_jwt = true
+
+[functions.send-email]
+verify_jwt = true
