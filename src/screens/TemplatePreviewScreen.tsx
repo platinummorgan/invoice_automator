@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { DEFAULT_TEMPLATE_SETTINGS, resolveTemplateSettings } from '../services/templateSettings';
@@ -65,7 +65,7 @@ const getReadableAccent = (accent: string, theme: any, isDark: boolean) => {
 
 export default function TemplatePreviewScreen({ route }: TemplatePreviewScreenProps) {
   const { theme, isDark } = useTheme();
-  const styles = createStyles(theme);
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const params = route?.params || {};
   const invoiceTemplate = (params.invoiceTemplate || 'classic') as InvoiceTemplate;
   const templateSettings = resolveTemplateSettings(
@@ -90,6 +90,8 @@ export default function TemplatePreviewScreen({ route }: TemplatePreviewScreenPr
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.previewLabel}>Sample invoice</Text>
+        <Text style={styles.previewNote}>This uses example work and customer details. Go back to save your design.</Text>
         <View
           style={[
             styles.invoiceCard,
@@ -99,7 +101,7 @@ export default function TemplatePreviewScreen({ route }: TemplatePreviewScreenPr
             },
           ]}
         >
-          <View style={[styles.header, { backgroundColor: palette.headerBackground }]}>
+          <View style={[styles.header, { backgroundColor: isDark ? theme.colors.cardStrong : palette.headerBackground }]}>
             {templateSettings.header_layout === 'inline' ? (
               <View style={styles.inlineHeaderRow}>
                 <View style={styles.inlineBusinessBlock}>
@@ -107,7 +109,7 @@ export default function TemplatePreviewScreen({ route }: TemplatePreviewScreenPr
                     <Image source={{ uri: logoUrl }} style={styles.inlineLogo} resizeMode="contain" />
                   ) : null}
                   <View style={styles.inlineBusinessText}>
-                    <Text style={[styles.businessNameInline, { color: palette.accent }]}>
+                    <Text style={[styles.businessNameInline, { color: highlightedTotalColor }]}>
                       {businessName}
                     </Text>
                     {templateSettings.show_business_contact ? (
@@ -125,7 +127,7 @@ export default function TemplatePreviewScreen({ route }: TemplatePreviewScreenPr
                 {templateSettings.show_logo && !!logoUrl ? (
                   <Image source={{ uri: logoUrl }} style={styles.logo} resizeMode="contain" />
                 ) : null}
-                <Text style={[styles.businessName, { color: palette.accent }]}>{businessName}</Text>
+                <Text style={[styles.businessName, { color: highlightedTotalColor }]}>{businessName}</Text>
                 {templateSettings.show_business_contact ? (
                   <>
                     <Text style={styles.businessDetail}>{businessPhone}</Text>
@@ -138,13 +140,13 @@ export default function TemplatePreviewScreen({ route }: TemplatePreviewScreenPr
           </View>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionLabel, { color: palette.sectionLabel }]}>Bill To</Text>
+            <Text style={[styles.sectionLabel, { color: isDark ? theme.colors.textSecondary : palette.sectionLabel }]}>Bill To</Text>
             <Text style={styles.customerName}>Taylor Homes LLC</Text>
             <Text style={styles.customerDetail}>billing@taylorhomes.com</Text>
           </View>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionLabel, { color: palette.sectionLabel }]}>Items</Text>
+            <Text style={[styles.sectionLabel, { color: isDark ? theme.colors.textSecondary : palette.sectionLabel }]}>Items</Text>
             {sampleItems.map((item) => (
               <View key={item.description} style={styles.itemRow}>
                 <View style={styles.itemTextWrap}>
@@ -186,7 +188,7 @@ export default function TemplatePreviewScreen({ route }: TemplatePreviewScreenPr
 
           {templateSettings.show_notes ? (
             <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: palette.sectionLabel }]}>Notes</Text>
+              <Text style={[styles.sectionLabel, { color: isDark ? theme.colors.textSecondary : palette.sectionLabel }]}>Notes</Text>
               <Text style={styles.noteText}>
                 Thank you for your business. We appreciate the opportunity to work on this project.
               </Text>
@@ -202,6 +204,8 @@ export default function TemplatePreviewScreen({ route }: TemplatePreviewScreenPr
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
+    previewLabel: { fontFamily: theme.fonts.body, fontSize: 20, fontWeight: '600', color: theme.colors.text, marginBottom: 8 },
+    previewNote: { fontFamily: theme.fonts.body, fontSize: 14, lineHeight: 21, color: theme.colors.textSecondary, marginBottom: 24 },
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,
@@ -279,7 +283,7 @@ const createStyles = (theme: any) =>
     invoiceNumber: {
       fontSize: 18,
       fontWeight: '700',
-      color: '#1f2937',
+      color: theme.colors.text,
       marginTop: 6,
     },
     section: {

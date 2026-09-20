@@ -20,6 +20,13 @@
       "env": {
         "GRADLE_OPTS": "-Dorg.gradle.jvmargs=-Xmx4096m"
       }
+    },
+    "test": {
+      "extends": "production",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {

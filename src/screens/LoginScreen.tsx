@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
-  Animated,
   View,
   Text,
   TextInput,
@@ -23,21 +23,16 @@ interface LoginScreenProps {
 
 export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenProps) {
   const { theme } = useTheme();
-  const styles = createStyles(theme);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleAvailable, setGoogleAvailable] = useState(true);
-  const [introAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     setGoogleAvailable(authService.isGoogleSignInAvailable());
-    Animated.timing(introAnim, {
-      toValue: 1,
-      duration: 550,
-      useNativeDriver: true,
-    }).start();
   }, []);
 
   const handleGoogleSignIn = async () => {
@@ -59,10 +54,14 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
 
     setLoading(true);
     try {
-      await authService.signIn(email, password);
+      await authService.signIn(email.trim(), password);
       onLoginSuccess();
     } catch (error: any) {
       Alert.alert('Login Failed', error.message);
@@ -75,66 +74,33 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
     >
-      <View style={styles.bgOrbTop} />
-      <View style={styles.bgOrbBottom} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Animated.View
-          style={[
-            styles.heroSection,
-            {
-              opacity: introAnim,
-              transform: [
-                {
-                  translateY: introAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [16, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Text style={styles.kicker}>FIELD-READY INVOICING</Text>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingTop: insets.top + 28, paddingBottom: insets.bottom + 24 }]}>
+        <View style={styles.heroSection}>
           <Text style={styles.title}>Swift Invoice</Text>
           <Text style={styles.subtitle}>
-            Built for jobsite speed, but polished enough to send in minutes.
+            Invoices for the work you do.
           </Text>
-          <View style={styles.statRow}>
-            <Text style={styles.statChip}>2 free invoices / month</Text>
-            <Text style={styles.statChip}>One-tap email drafts</Text>
-          </View>
-        </Animated.View>
+        </View>
 
-        <Animated.View
-          style={[
-            styles.formCard,
-            {
-              opacity: introAnim,
-              transform: [
-                {
-                  translateY: introAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [24, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Text style={styles.formTitle}>Welcome Back</Text>
-          <Text style={styles.formSubtitle}>Log in to manage invoices and payment follow-ups.</Text>
+        <View style={styles.formCard}>
+          <Text style={styles.formTitle}>Sign in</Text>
+          <Text style={styles.formSubtitle}>Pick up where you left off.</Text>
 
           <Text style={styles.fieldLabel}>Email</Text>
           <TextInput
             style={styles.input}
             placeholder="you@business.com"
             placeholderTextColor={theme.colors.placeholder}
-            value={email}
+            accessibilityLabel="Email"
+              value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
-            editable={!loading}
+              autoCorrect={false}
+              autoComplete="email"
+            editable={!loading && !googleLoading}
           />
 
           <Text style={styles.fieldLabel}>Password</Text>
@@ -142,21 +108,22 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
             style={styles.input}
             placeholder="Enter password"
             placeholderTextColor={theme.colors.placeholder}
-            value={password}
+            accessibilityLabel="Password"
+              value={password}
             onChangeText={setPassword}
             secureTextEntry
-            editable={!loading}
+            editable={!loading && !googleLoading}
           />
 
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             onPress={() => navigation.navigate('ForgotPassword')}
-            disabled={loading}
+            disabled={loading || googleLoading}
             style={styles.forgotPassword}
           >
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            <Text style={styles.forgotPasswordText}>Forgot password?</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleLogin}
             disabled={loading || googleLoading}
@@ -164,7 +131,7 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Login</Text>
+              <Text style={styles.buttonText}>Sign in</Text>
             )}
           </TouchableOpacity>
 
@@ -174,7 +141,7 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
             onPress={handleGoogleSignIn}
             disabled={loading || googleLoading || !googleAvailable}
@@ -185,13 +152,13 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
               <>
                 <GoogleIcon size={20} />
                 <Text style={styles.googleButtonText}>
-                  {googleAvailable ? 'Continue with Google' : 'Google Sign-In requires dev build'}
+                  {googleAvailable ? 'Continue with Google' : 'Google sign-in unavailable'}
                 </Text>
               </>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             onPress={() => navigation.navigate('SignUp')}
             disabled={loading || googleLoading}
           >
@@ -199,7 +166,7 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
               New here? <Text style={styles.linkTextBold}>Create an account</Text>
             </Text>
           </TouchableOpacity>
-        </Animated.View>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -212,46 +179,16 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 54,
+    paddingHorizontal: 24,
+    paddingTop: 28,
     paddingBottom: 30,
-  },
-  bgOrbTop: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    top: -90,
-    right: -70,
-    backgroundColor: theme.colors.primaryLight,
-  },
-  bgOrbBottom: {
-    position: 'absolute',
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    bottom: -140,
-    left: -120,
-    backgroundColor: theme.colors.accentSoft,
   },
   heroSection: {
     marginBottom: 18,
   },
-  kicker: {
-    alignSelf: 'flex-start',
-    backgroundColor: theme.colors.cardStrong,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    color: theme.colors.textSecondary,
-    fontSize: 11,
-    fontFamily: theme.fonts.body,
-    letterSpacing: 0.9,
-    marginBottom: 14,
-  },
   title: {
-    fontSize: 40,
-    fontFamily: theme.fonts.headline,
+    fontSize: 32,
+    fontFamily: theme.fonts.body,
     fontWeight: '700',
     color: theme.colors.text,
     marginBottom: 10,
@@ -263,38 +200,10 @@ const createStyles = (theme: any) => StyleSheet.create({
     lineHeight: 23,
     maxWidth: '94%',
   },
-  statRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 14,
-  },
-  statChip: {
-    fontSize: 12,
-    fontFamily: theme.fonts.body,
-    color: theme.colors.text,
-    backgroundColor: theme.colors.card,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  formCard: {
-    backgroundColor: theme.colors.card,
-    borderColor: theme.colors.border,
-    borderWidth: 1,
-    borderRadius: 20,
-    padding: 18,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.11,
-    shadowRadius: 14,
-    elevation: 3,
-  },
+  formCard: { paddingVertical: 24, borderTopWidth: 1, borderTopColor: theme.colors.border },
   formTitle: {
     fontSize: 26,
-    fontFamily: theme.fonts.headline,
+    fontFamily: theme.fonts.body,
     color: theme.colors.text,
     marginBottom: 2,
   },
@@ -306,18 +215,16 @@ const createStyles = (theme: any) => StyleSheet.create({
     lineHeight: 20,
   },
   fieldLabel: {
-    fontSize: 11,
+    fontSize: 14,
     fontFamily: theme.fonts.body,
-    letterSpacing: 0.8,
     color: theme.colors.textSecondary,
     marginBottom: 6,
-    textTransform: 'uppercase',
   },
   input: {
     backgroundColor: theme.colors.inputBackground,
     paddingHorizontal: 14,
     paddingVertical: 13,
-    borderRadius: 12,
+    borderRadius: 6,
     fontSize: 16,
     fontFamily: theme.fonts.body,
     borderWidth: 1,
@@ -326,9 +233,9 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginBottom: 10,
   },
   button: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: '#1B6C53',
     padding: 15,
-    borderRadius: 12,
+    borderRadius: 6,
     alignItems: 'center',
     marginTop: 8,
   },
@@ -343,11 +250,12 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   forgotPassword: {
     alignSelf: 'flex-end',
-    marginTop: -2,
+    minHeight: 44,
+    justifyContent: 'center',
     marginBottom: 4,
   },
   forgotPasswordText: {
-    color: theme.colors.accent,
+    color: theme.colors.primary,
     fontSize: 13,
     fontFamily: theme.fonts.body,
     fontWeight: '600',
@@ -360,7 +268,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 13,
   },
   linkTextBold: {
-    color: theme.colors.accent,
+    color: theme.colors.primary,
     fontWeight: '700',
   },
   divider: {
@@ -377,13 +285,13 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginHorizontal: 10,
     color: theme.colors.textSecondary,
     fontFamily: theme.fonts.body,
-    fontSize: 11,
+    fontSize: 14,
     letterSpacing: 0.9,
   },
   googleButton: {
     backgroundColor: theme.colors.cardStrong,
     padding: 14,
-    borderRadius: 12,
+    borderRadius: 6,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',

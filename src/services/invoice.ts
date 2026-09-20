@@ -1,89 +1,20 @@
+import { calendarDate, isOutstanding } from '../utils/invoiceValues';
 import { supabase } from './supabase';
 import { Invoice, InvoiceFormData, InvoiceItem } from '../types';
 
 export const invoiceService = {
-  async createInvoice(formData: InvoiceFormData): Promise<Invoice> {
-    const session = await supabase.auth.getSession();
-    if (!session.data.session?.user) throw new Error('Not authenticated');
-
-    const userId = session.data.session.user.id;
-
-    // Generate invoice number
-    const { data: invoiceNumber, error: numberError } = await supabase.rpc(
-      'generate_invoice_number',
-      { p_user_id: userId }
-    );
-
-    if (numberError) throw numberError;
-
-    // Calculate totals
-    const subtotal = formData.items.reduce(
-      (sum, item) => sum + item.quantity * item.unit_price,
-      0
-    );
-    const taxAmount = subtotal * (formData.tax_rate / 100);
-    const total = subtotal + taxAmount;
-
-    // Create customer if needed
-    let customerId = formData.customer_id;
-    if (!customerId && formData.customer_name) {
-      const { data: customer, error: customerError } = await supabase
-        .from('customers')
-        .insert({
-          user_id: userId,
-          name: formData.customer_name,
-          email: formData.customer_email,
-          phone: formData.customer_phone,
-        })
-        .select()
-        .single();
-
-      if (customerError) throw customerError;
-      customerId = customer.id;
-    }
-
-    // Create invoice
-    const { data: invoice, error: invoiceError } = await supabase
-      .from('invoices')
-      .insert({
-        user_id: userId,
-        customer_id: customerId,
-        customer_name: formData.customer_name, // Store name for history
-        invoice_number: invoiceNumber,
-        status: 'draft',
-        issue_date: formData.issue_date.toISOString().split('T')[0],
-        due_date: formData.due_date.toISOString().split('T')[0],
-        subtotal,
-        tax_rate: formData.tax_rate,
-        tax_amount: taxAmount,
-        total,
-        notes: formData.notes,
-      })
-      .select()
-      .single();
-
-    if (invoiceError) throw invoiceError;
-
-    // Create invoice items
-    const items = formData.items.map((item, index) => ({
-      invoice_id: invoice.id,
-      description: item.description,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      amount: item.quantity * item.unit_price,
-      sort_order: index,
-    }));
-
-    const { error: itemsError } = await supabase
-      .from('invoice_items')
-      .insert(items);
-
-    if (itemsError) throw itemsError;
-
-    // Increment user's invoice count
-    await supabase.rpc('increment_invoice_count', { p_user_id: userId });
-
-    return invoice;
+  async createInvoice(formData: InvoiceFormData, requestId: string, invoiceId?: string): Promise<Invoice> {
+    const { data, error } = await supabase.rpc('save_invoice_draft', {
+      p_payload: {
+        ...formData,
+        issue_date: calendarDate(formData.issue_date),
+        due_date: calendarDate(formData.due_date),
+      },
+      p_request_id: requestId,
+      p_invoice_id: invoiceId || null,
+    });
+    if (error) throw error;
+    return data;
   },
 
   async getInvoices(status?: string, startDate?: string, endDate?: string): Promise<Invoice[]> {
@@ -100,7 +31,7 @@ export const invoiceService = {
       query = query.eq('status', 'void');
     } else if (status === 'unpaid') {
       // Unpaid = not paid and not void (includes draft, sent, overdue)
-      query = query.neq('status', 'paid').neq('status', 'void');
+      query = query.in('status', ['sent', 'overdue']);
     } else if (status) {
       query = query.eq('status', status);
     } else {
@@ -129,7 +60,32 @@ export const invoiceService = {
       .single();
 
     if (error) throw error;
-    return data;
+    const customer = data.customer;
+    return {
+      ...data,
+      items: (data.items || []).sort((a: InvoiceItem, b: InvoiceItem) => a.sort_order - b.sort_order),
+      customer: (customer || data.customer_name) ? {
+        ...customer,
+        id: customer?.id || '',
+        user_id: data.user_id,
+        name: data.customer_name || customer?.name,
+        email: data.customer_email ?? customer?.email,
+        phone: data.customer_phone ?? customer?.phone,
+      } : undefined,
+    };
+  },
+
+  async markInvoiceSent(id: string) {
+    const { data, error } = await supabase.from('invoices')
+      .update({ status: 'sent', sent_at: new Date().toISOString() })
+      .eq('id', id).eq('status', 'draft').select('id').maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      const current = await this.getInvoice(id);
+      if (!['sent', 'overdue'].includes(current.status)) {
+        throw new Error('This invoice is no longer a draft. Refresh it before continuing.');
+      }
+    }
   },
 
   async updateInvoiceStatus(id: string, status: string) {
@@ -180,7 +136,7 @@ export const invoiceService = {
     // Get non-voided invoices
     let query = supabase
       .from('invoices')
-      .select('status, total')
+      .select('status, total, due_date')
       .eq('user_id', userId)
       .neq('status', 'void');
 
@@ -218,8 +174,9 @@ export const invoiceService = {
     const stats = {
       total: invoices?.length || 0,
       paid: invoices?.filter((i) => i.status === 'paid').length || 0,
-      unpaid: invoices?.filter((i) => i.status !== 'paid').length || 0,
+      unpaid: invoices?.filter((i) => isOutstanding(i.status)).length || 0,
       voided: voidedCount || 0,
+      overdueAmount: invoices?.filter(i => isOutstanding(i.status) && i.due_date < calendarDate(new Date())).reduce((sum, i) => sum + Number(i.total), 0) || 0,
       totalAmount: invoices?.reduce((sum, i) => sum + Number(i.total), 0) || 0,
       paidAmount:
         invoices
@@ -227,7 +184,7 @@ export const invoiceService = {
           .reduce((sum, i) => sum + Number(i.total), 0) || 0,
       unpaidAmount:
         invoices
-          ?.filter((i) => i.status !== 'paid')
+          ?.filter((i) => isOutstanding(i.status))
           .reduce((sum, i) => sum + Number(i.total), 0) || 0,
     };
 
@@ -258,8 +215,7 @@ export const invoiceService = {
     const monthlyData: { [key: string]: any } = {};
 
     invoices?.forEach((invoice) => {
-      const date = new Date(invoice.issue_date);
-      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const month = invoice.issue_date.slice(5, 7);
       const key = month;
 
       if (!monthlyData[key]) {
@@ -279,7 +235,7 @@ export const invoiceService = {
       if (invoice.status === 'paid') {
         monthlyData[key].paidAmount += Number(invoice.total);
         monthlyData[key].paidCount++;
-      } else {
+      } else if (isOutstanding(invoice.status)) {
         monthlyData[key].unpaidAmount += Number(invoice.total);
         monthlyData[key].unpaidCount++;
       }

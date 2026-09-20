@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,10 +16,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../services/supabase';
 
 const FEEDBACK_CATEGORIES = [
-  { id: 'bug', label: '🐛 Bug Report', emoji: '🐛' },
-  { id: 'feature', label: '💡 Feature Request', emoji: '💡' },
-  { id: 'improvement', label: '✨ Improvement', emoji: '✨' },
-  { id: 'other', label: '💬 General Feedback', emoji: '💬' },
+  { id: 'bug', label: 'Report a problem' },
+  { id: 'feature', label: 'Request a feature' },
+  { id: 'improvement', label: 'Suggest a change' },
+  { id: 'other', label: 'Something else' },
 ];
 
 const RATING_OPTIONS = [1, 2, 3, 4, 5];
@@ -29,7 +30,8 @@ interface FeedbackScreenProps {
 
 export default function FeedbackScreen({ navigation }: FeedbackScreenProps) {
   const { theme } = useTheme();
-  const styles = createStyles(theme);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [category, setCategory] = useState('');
   const [rating, setRating] = useState(0);
   const [message, setMessage] = useState('');
@@ -47,11 +49,16 @@ export default function FeedbackScreen({ navigation }: FeedbackScreenProps) {
       return;
     }
 
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address or leave it blank');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       // Get user's email if not manually entered
       let userEmail = email.trim();
       if (!userEmail && user?.email) {
@@ -80,8 +87,8 @@ export default function FeedbackScreen({ navigation }: FeedbackScreenProps) {
       }
 
       Alert.alert(
-        'Thank You! 🎉',
-        'Your feedback has been submitted successfully. We appreciate you helping us improve Swift Invoice!',
+        'Feedback sent',
+        'Thank you for helping us improve Swift Invoice.',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
 
@@ -92,17 +99,17 @@ export default function FeedbackScreen({ navigation }: FeedbackScreenProps) {
       setEmail('');
     } catch (error: any) {
       console.error('Feedback submission error:', error);
-      
+
       // Provide more specific error messages
       let errorMessage = 'Failed to submit feedback. Please try again or contact support@platovalabs.com directly.';
-      
-      if (error.message?.includes('Email service not configured') || 
+
+      if (error.message?.includes('Email service not configured') ||
           error.message?.includes('domain not properly configured')) {
-        errorMessage = 'Email service configuration issue. Your feedback was recorded but could not be emailed. Please contact support@platovalabs.com directly with your feedback.';
+        errorMessage = 'Email service configuration issue. We could not confirm delivery of your feedback. Please contact support@platovalabs.com directly with your feedback.';
       } else if (error.message) {
         errorMessage = `${error.message}\n\nPlease contact support@platovalabs.com if this persists.`;
       }
-      
+
       Alert.alert(
         'Error',
         errorMessage,
@@ -117,12 +124,13 @@ export default function FeedbackScreen({ navigation }: FeedbackScreenProps) {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={insets.top + 44}
     >
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView keyboardShouldPersistTaps="handled" style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <Text style={styles.header}>We'd Love Your Feedback!</Text>
+          <Text style={styles.header}>What could work better?</Text>
           <Text style={styles.subtitle}>
-            Help us improve Swift Invoice by sharing your thoughts, reporting bugs, or suggesting new features.
+            Tell us what happened or what you would like to be able to do.
           </Text>
 
           {/* Category Selection */}
@@ -131,20 +139,23 @@ export default function FeedbackScreen({ navigation }: FeedbackScreenProps) {
             {FEEDBACK_CATEGORIES.map((cat) => (
               <TouchableOpacity
                 key={cat.id}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: category === cat.id }}
+                disabled={loading}
                 style={[
                   styles.categoryButton,
                   category === cat.id && styles.categoryButtonActive,
                 ]}
                 onPress={() => setCategory(cat.id)}
               >
-                <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
+
                 <Text
                   style={[
                     styles.categoryLabel,
                     category === cat.id && styles.categoryLabelActive,
                   ]}
                 >
-                  {cat.label.replace(/^..\s/, '')}
+                  {cat.label}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -156,19 +167,25 @@ export default function FeedbackScreen({ navigation }: FeedbackScreenProps) {
             {RATING_OPTIONS.map((star) => (
               <TouchableOpacity
                 key={star}
-                onPress={() => setRating(star)}
-                style={styles.starButton}
+                accessibilityRole="radio"
+                accessibilityLabel={`${star} out of 5`}
+                accessibilityState={{ checked: rating === star }}
+                disabled={loading}
+                onPress={() => setRating(rating === star ? 0 : star)}
+                style={[styles.starButton, rating === star && styles.categoryButtonActive]}
               >
                 <Text style={styles.star}>
-                  {star <= rating ? '⭐' : '☆'}
+                  {star}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
           {/* Message */}
-          <Text style={styles.label}>Your Feedback</Text>
+          <Text style={styles.label}>Message</Text>
           <TextInput
+            accessibilityLabel="Feedback message"
+            editable={!loading}
             style={styles.messageInput}
             placeholder="Tell us what's on your mind..."
             placeholderTextColor={theme.colors.textSecondary}
@@ -177,11 +194,17 @@ export default function FeedbackScreen({ navigation }: FeedbackScreenProps) {
             multiline
             numberOfLines={6}
             textAlignVertical="top"
+            maxLength={1000}
           />
+          <Text style={{ fontSize: 12, color: theme.colors.placeholder, textAlign: 'right', marginTop: 4 }}>
+            {message.length}/1000
+          </Text>
 
           {/* Email (optional) */}
-          <Text style={styles.label}>Email (Optional)</Text>
+          <Text style={styles.label}>Reply email (optional)</Text>
           <TextInput
+            accessibilityLabel="Reply email"
+            editable={!loading}
             style={styles.input}
             placeholder="your@email.com"
             placeholderTextColor={theme.colors.textSecondary}
@@ -193,18 +216,19 @@ export default function FeedbackScreen({ navigation }: FeedbackScreenProps) {
 
           <TouchableOpacity
             style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+            accessibilityRole="button"
             onPress={handleSubmit}
             disabled={loading}
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitButtonText}>Submit Feedback</Text>
+              <Text style={styles.submitButtonText}>Send feedback</Text>
             )}
           </TouchableOpacity>
 
           <Text style={styles.footerNote}>
-            We read every piece of feedback and use it to make Swift Invoice better for everyone.
+            Leave the reply email blank to use your account email. Rating: 1 is poor, 5 is excellent. Tap a selected rating to clear it.
           </Text>
         </View>
       </ScrollView>
@@ -221,21 +245,25 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 20,
+    padding: 24,
+    paddingBottom: 40,
   },
   header: {
+    fontFamily: theme.fonts.body,
     fontSize: 28,
     fontWeight: 'bold',
     color: theme.colors.text,
     marginBottom: 8,
   },
   subtitle: {
+    fontFamily: theme.fonts.body,
     fontSize: 16,
     color: theme.colors.textSecondary,
     marginBottom: 32,
     lineHeight: 22,
   },
   label: {
+    fontFamily: theme.fonts.body,
     fontSize: 16,
     fontWeight: '600',
     color: theme.colors.text,
@@ -253,21 +281,22 @@ const createStyles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 2,
+    borderRadius: 6,
+    borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.card,
-    minWidth: '47%',
   },
   categoryButtonActive: {
     borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primary + '15',
+    backgroundColor: theme.colors.primaryLight,
   },
   categoryEmoji: {
+    fontFamily: theme.fonts.body,
     fontSize: 20,
     marginRight: 8,
   },
   categoryLabel: {
+    fontFamily: theme.fonts.body,
     fontSize: 14,
     fontWeight: '500',
     color: theme.colors.text,
@@ -282,16 +311,25 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginBottom: 24,
   },
   starButton: {
-    padding: 4,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 6,
   },
   star: {
-    fontSize: 32,
+    fontFamily: theme.fonts.body,
+    fontSize: 18,
+    color: theme.colors.text,
   },
   input: {
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 12,
+    borderRadius: 6,
     padding: 16,
+    fontFamily: theme.fonts.body,
     fontSize: 16,
     color: theme.colors.text,
     backgroundColor: theme.colors.card,
@@ -300,8 +338,9 @@ const createStyles = (theme: any) => StyleSheet.create({
   messageInput: {
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 12,
+    borderRadius: 6,
     padding: 16,
+    fontFamily: theme.fonts.body,
     fontSize: 16,
     color: theme.colors.text,
     backgroundColor: theme.colors.card,
@@ -309,8 +348,8 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginBottom: 16,
   },
   submitButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 12,
+    backgroundColor: '#1B6C53',
+    borderRadius: 6,
     padding: 16,
     alignItems: 'center',
     marginTop: 8,
@@ -321,14 +360,16 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   submitButtonText: {
     color: '#fff',
+    fontFamily: theme.fonts.body,
     fontSize: 16,
     fontWeight: '600',
   },
   footerNote: {
+    fontFamily: theme.fonts.body,
     fontSize: 14,
     color: theme.colors.textSecondary,
     textAlign: 'center',
-    fontStyle: 'italic',
+    lineHeight: 21,
     marginTop: 8,
   },
 });

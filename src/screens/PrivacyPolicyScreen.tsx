@@ -1,4 +1,5 @@
-import React from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,7 +17,7 @@ interface PrivacyPolicyScreenProps {
 
 export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyScreenProps) {
   const { theme } = useTheme();
-  const styles = createStyles(theme);
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (
     <Modal
@@ -25,10 +26,10 @@ export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyS
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Privacy Policy</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close privacy policy" onPress={onClose} style={styles.closeButton}>
             <Text style={styles.closeButtonText}>Done</Text>
           </TouchableOpacity>
         </View>
@@ -73,7 +74,7 @@ export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyS
 
           <Text style={styles.sectionTitle}>6. Data Retention</Text>
           <Text style={styles.paragraph}>
-            We retain your information for as long as your account is active or as needed to provide you services. You may delete your data at any time by deleting your account or individual records within the app.
+            We retain your information for as long as your account is active or as needed to provide you services. To request deletion of your account and associated data, open Settings → Request account deletion or email support@platovalabs.com from your account email. We verify account ownership before processing deletion. Account deletion does not cancel a Google Play subscription; manage billing separately in Google Play.
           </Text>
 
           <Text style={styles.sectionTitle}>7. Your Rights</Text>
@@ -103,7 +104,7 @@ export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyS
 
           <View style={styles.bottomSpacer} />
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -111,7 +112,7 @@ export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyS
 const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -122,14 +123,21 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   headerTitle: {
+    flex: 1,
+    marginRight: 12,
+    fontFamily: theme.fonts.body,
     fontSize: 20,
     fontWeight: '600',
     color: theme.colors.text,
   },
   closeButton: {
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: 'center',
     padding: 8,
   },
   closeButtonText: {
+    fontFamily: theme.fonts.body,
     fontSize: 16,
     color: theme.colors.primary,
     fontWeight: '600',
@@ -138,15 +146,17 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 20,
+    padding: 24,
   },
   lastUpdated: {
+    fontFamily: theme.fonts.body,
     fontSize: 14,
     color: theme.colors.textSecondary,
     marginBottom: 24,
     fontStyle: 'italic',
   },
   sectionTitle: {
+    fontFamily: theme.fonts.body,
     fontSize: 18,
     fontWeight: '600',
     color: theme.colors.text,
@@ -154,12 +164,14 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginBottom: 12,
   },
   paragraph: {
+    fontFamily: theme.fonts.body,
     fontSize: 15,
     color: theme.colors.text,
     lineHeight: 22,
     marginBottom: 12,
   },
   bulletPoint: {
+    fontFamily: theme.fonts.body,
     fontSize: 15,
     color: theme.colors.text,
     lineHeight: 22,

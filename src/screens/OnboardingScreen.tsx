@@ -1,203 +1,43 @@
-import React, { useState, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Dimensions,
-  TouchableOpacity,
-  FlatList,
-  ViewToken,
-} from 'react-native';
+import React, { useMemo } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import AppIcon, { IconName } from '../components/AppIcon';
 
-const { width } = Dimensions.get('window');
-
-interface OnboardingSlide {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
-}
-
-const slides: OnboardingSlide[] = [
-  {
-    id: '1',
-    title: 'Welcome to Swift Invoice',
-    description: 'Create professional invoices in seconds and get paid faster.',
-    icon: '📄',
-  },
-  {
-    id: '2',
-    title: 'Easy Invoice Creation',
-    description: 'Add items, clients, and customize your invoices with just a few taps.',
-    icon: '✏️',
-  },
-  {
-    id: '3',
-    title: 'Share & Get Paid',
-    description: 'Send invoices via email and include your preferred payment methods (PayPal, Venmo, Cash App, Zelle, and more).',
-    icon: '💰',
-  },
-  {
-    id: '4',
-    title: 'Upgrade to Pro',
-    description: 'Unlock unlimited invoices, advanced features, and priority support.',
-    icon: '⭐',
-  },
+const steps: { icon: IconName; title: string; description: string }[] = [
+  { icon: 'invoice', title: 'Start with a draft', description: 'Add your customer, the work and your prices. Review it before sharing.' },
+  { icon: 'plus', title: 'Share your way', description: 'Send a PDF through an app on your phone, or open an email draft.' },
+  { icon: 'reports', title: 'Keep track of payments', description: 'Record when an invoice is paid and see what is still outstanding.' },
 ];
 
-interface OnboardingScreenProps {
-  onComplete: () => void;
-}
-
-export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
+export default function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
   const { theme } = useTheme();
-  const styles = createStyles(theme);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const flatListRef = useRef<FlatList>(null);
-
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
-    if (viewableItems.length > 0) {
-      setCurrentIndex(viewableItems[0].index || 0);
-    }
-  }).current;
-
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-  }).current;
-
-  const handleNext = () => {
-    if (currentIndex < slides.length - 1) {
-      flatListRef.current?.scrollToIndex({
-        index: currentIndex + 1,
-        animated: true,
-      });
-    } else {
-      onComplete();
-    }
-  };
-
-  const renderSlide = ({ item }: { item: OnboardingSlide }) => (
-    <View style={styles.slide}>
-      <Text style={styles.icon}>{item.icon}</Text>
-      <Text style={styles.title}>{item.title}</Text>
-      <Text style={styles.description}>{item.description}</Text>
-    </View>
-  );
-
-  return (
-    <View style={styles.container}>
-      <TouchableOpacity style={styles.skipButton} onPress={onComplete}>
-        <Text style={styles.skipText}>Skip</Text>
-      </TouchableOpacity>
-
-      <FlatList
-        ref={flatListRef}
-        data={slides}
-        renderItem={renderSlide}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        keyExtractor={(item) => item.id}
-      />
-
-      <View style={styles.footer}>
-        <View style={styles.pagination}>
-          {slides.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.dot,
-                index === currentIndex && styles.dotActive,
-              ]}
-            />
-          ))}
-        </View>
-
-        <TouchableOpacity style={styles.button} onPress={handleNext}>
-          <Text style={styles.buttonText}>
-            {currentIndex === slides.length - 1 ? "Get Started" : "Next"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  return <SafeAreaView style={styles.screen}>
+    <ScrollView contentContainerStyle={styles.content}>
+      <Text style={styles.brand}>Swift Invoice</Text>
+      <Text style={styles.title}>From finished work to a clear invoice.</Text>
+      <Text style={styles.description}>A few essentials to get you started.</Text>
+      <View style={styles.steps}>{steps.map(step => <View key={step.title} style={styles.step}>
+        <AppIcon name={step.icon} color={theme.colors.primary} />
+        <View style={styles.stepBody}><Text style={styles.heading}>{step.title}</Text><Text style={styles.description}>{step.description}</Text></View>
+      </View>)}</View>
+      <TouchableOpacity accessibilityRole="button" style={styles.button} onPress={onComplete}><Text style={styles.buttonText}>Go to my invoices</Text></TouchableOpacity>
+      <Text style={styles.note}>You can add your business details and logo in Settings.</Text>
+    </ScrollView>
+  </SafeAreaView>;
 }
-
-const createStyles = (theme: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  skipButton: {
-    position: 'absolute',
-    top: 50,
-    right: 20,
-    zIndex: 10,
-    padding: 10,
-  },
-  skipText: {
-    color: theme.colors.textSecondary,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  slide: {
-    width,
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  icon: {
-    fontSize: 100,
-    marginBottom: 40,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  description: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 24,
-    paddingHorizontal: 20,
-  },
-  footer: {
-    paddingHorizontal: 24,
-    paddingBottom: 50,
-  },
-  pagination: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.colors.border,
-    marginHorizontal: 4,
-  },
-  dotActive: {
-    width: 24,
-    backgroundColor: theme.colors.primary,
-  },
-  button: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+const createStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  content: { flexGrow: 1, padding: 24, paddingTop: 36, maxWidth: 600, width: '100%', alignSelf: 'center' },
+  brand: { fontFamily: theme.fonts.body, fontSize: 16, fontWeight: '600', color: theme.colors.primary, marginBottom: 32 },
+  title: { fontFamily: theme.fonts.body, fontSize: 32, fontWeight: '600', lineHeight: 40, color: theme.colors.text, marginBottom: 12 },
+  description: { fontFamily: theme.fonts.body, fontSize: 16, lineHeight: 24, color: theme.colors.textSecondary },
+  steps: { marginVertical: 32 },
+  step: { flexDirection: 'row', gap: 16, paddingVertical: 20, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  stepBody: { flex: 1, gap: 6 },
+  heading: { fontFamily: theme.fonts.body, fontSize: 18, fontWeight: '600', color: theme.colors.text },
+  button: { backgroundColor: '#1B6C53', minHeight: 50, padding: 14, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  buttonText: { fontFamily: theme.fonts.body, fontSize: 16, fontWeight: '600', color: '#fff' },
+  note: { fontFamily: theme.fonts.body, fontSize: 14, lineHeight: 21, color: theme.colors.textSecondary, marginTop: 16, marginBottom: 16 },
 });

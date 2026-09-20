@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import PrivacyPolicyScreen from './PrivacyPolicyScreen';
+import TermsScreen from './TermsScreen';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
-  Animated,
   View,
   Text,
   TextInput,
@@ -23,7 +25,10 @@ interface SignUpScreenProps {
 
 export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScreenProps) {
   const { theme } = useTheme();
-  const styles = createStyles(theme);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,15 +36,9 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleAvailable, setGoogleAvailable] = useState(true);
-  const [introAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     setGoogleAvailable(authService.isGoogleSignInAvailable());
-    Animated.timing(introAnim, {
-      toValue: 1,
-      duration: 550,
-      useNativeDriver: true,
-    }).start();
   }, []);
 
   const handleGoogleSignIn = async () => {
@@ -57,8 +56,13 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
   };
 
   const handleSignUp = async () => {
-    if (!email || !password || !fullName) {
+    if (!email || !password || !fullName.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
 
@@ -75,10 +79,10 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
     setLoading(true);
     try {
       // Sign up the user
-      await authService.signUp(email, password, fullName);
+      await authService.signUp(email.trim(), password, fullName.trim());
       
       // Automatically sign in the user after successful registration
-      await authService.signIn(email, password);
+      await authService.signIn(email.trim(), password);
       
       // Show success message and navigate to app
       Alert.alert(
@@ -97,45 +101,29 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={insets.top + 44}
     >
-      <View style={styles.bgOrbTop} />
-      <View style={styles.bgOrbBottom} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Animated.View
-          style={[
-            styles.content,
-            {
-              opacity: introAnim,
-              transform: [
-                {
-                  translateY: introAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [16, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
+        <View style={styles.content}>
           <View style={styles.heroSection}>
-            <Text style={styles.kicker}>FAST ONBOARDING</Text>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Set up once. Send polished invoices from anywhere.</Text>
+            <Text style={styles.title}>Create an account</Text>
+            <Text style={styles.subtitle}>Keep your customers and invoices together.</Text>
           </View>
 
           <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Business Profile</Text>
+            <Text style={styles.formTitle}>Your details</Text>
             <Text style={styles.formSubtitle}>You can finish business details later in Settings.</Text>
 
-            <Text style={styles.fieldLabel}>Full Name</Text>
+            <Text style={styles.fieldLabel}>Full name</Text>
             <TextInput
               style={styles.input}
               placeholder="Alex Contractor"
               placeholderTextColor={theme.colors.placeholder}
+              accessibilityLabel="Full name"
               value={fullName}
               onChangeText={setFullName}
               autoCapitalize="words"
-              editable={!loading}
+              editable={!loading && !googleLoading}
             />
 
             <Text style={styles.fieldLabel}>Email</Text>
@@ -143,11 +131,14 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               style={styles.input}
               placeholder="you@business.com"
               placeholderTextColor={theme.colors.placeholder}
+              accessibilityLabel="Email"
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
-              editable={!loading}
+              autoCorrect={false}
+              autoComplete="email"
+              editable={!loading && !googleLoading}
             />
 
             <Text style={styles.fieldLabel}>Password</Text>
@@ -155,24 +146,26 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               style={styles.input}
               placeholder="Minimum 6 characters"
               placeholderTextColor={theme.colors.placeholder}
+              accessibilityLabel="Password"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
-              editable={!loading}
+              editable={!loading && !googleLoading}
             />
 
-            <Text style={styles.fieldLabel}>Confirm Password</Text>
+            <Text style={styles.fieldLabel}>Confirm password</Text>
             <TextInput
               style={styles.input}
               placeholder="Re-enter password"
               placeholderTextColor={theme.colors.placeholder}
+              accessibilityLabel="Confirm password"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
-              editable={!loading}
+              editable={!loading && !googleLoading}
             />
 
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleSignUp}
               disabled={loading || googleLoading}
@@ -180,7 +173,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Create Account</Text>
+                <Text style={styles.buttonText}>Create an account</Text>
               )}
             </TouchableOpacity>
 
@@ -190,7 +183,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               <View style={styles.dividerLine} />
             </View>
 
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
               onPress={handleGoogleSignIn}
               disabled={loading || googleLoading || !googleAvailable}
@@ -201,31 +194,35 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
                 <>
                   <GoogleIcon size={20} />
                   <Text style={styles.googleButtonText}>
-                    {googleAvailable ? 'Continue with Google' : 'Google Sign-In requires dev build'}
+                    {googleAvailable ? 'Continue with Google' : 'Google sign-in unavailable'}
                   </Text>
                 </>
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               onPress={() => navigation.goBack()}
               disabled={loading || googleLoading}
             >
               <Text style={styles.linkText}>
-                Already have an account? <Text style={styles.linkTextBold}>Login</Text>
+                Already have an account? <Text style={styles.linkTextBold}>Sign in</Text>
               </Text>
             </TouchableOpacity>
 
             <View style={styles.terms}>
               <Text style={styles.termsText}>
-                By signing up, you agree to our Terms of Service and Privacy Policy.
+                By signing up, you agree to our{' '}
+                <Text accessibilityRole="link" onPress={() => setShowTerms(true)} style={styles.linkTextBold}>Terms of Service</Text>{' '}and{' '}
+                <Text accessibilityRole="link" onPress={() => setShowPrivacy(true)} style={styles.linkTextBold}>Privacy Policy</Text>.
                 {'\n\n'}
                 Free tier: 2 invoices/month
               </Text>
             </View>
           </View>
-        </Animated.View>
+        </View>
       </ScrollView>
+      <PrivacyPolicyScreen visible={showPrivacy} onClose={() => setShowPrivacy(false)} />
+      <TermsScreen visible={showTerms} onClose={() => setShowTerms(false)} />
     </KeyboardAvoidingView>
   );
 }
@@ -235,28 +232,10 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  bgOrbTop: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    top: -90,
-    right: -70,
-    backgroundColor: theme.colors.primaryLight,
-  },
-  bgOrbBottom: {
-    position: 'absolute',
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    bottom: -140,
-    left: -120,
-    backgroundColor: theme.colors.accentSoft,
-  },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 54,
+    paddingHorizontal: 24,
+    paddingTop: 28,
     paddingBottom: 30,
   },
   content: {
@@ -265,21 +244,9 @@ const createStyles = (theme: any) => StyleSheet.create({
   heroSection: {
     marginBottom: 18,
   },
-  kicker: {
-    alignSelf: 'flex-start',
-    backgroundColor: theme.colors.cardStrong,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    color: theme.colors.textSecondary,
-    fontSize: 11,
-    fontFamily: theme.fonts.body,
-    letterSpacing: 0.9,
-    marginBottom: 14,
-  },
   title: {
-    fontSize: 38,
-    fontFamily: theme.fonts.headline,
+    fontSize: 32,
+    fontFamily: theme.fonts.body,
     fontWeight: '700',
     color: theme.colors.text,
     marginBottom: 10,
@@ -291,21 +258,10 @@ const createStyles = (theme: any) => StyleSheet.create({
     lineHeight: 23,
     maxWidth: '94%',
   },
-  formCard: {
-    backgroundColor: theme.colors.card,
-    borderColor: theme.colors.border,
-    borderWidth: 1,
-    borderRadius: 20,
-    padding: 18,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.11,
-    shadowRadius: 14,
-    elevation: 3,
-  },
+  formCard: { paddingVertical: 24, borderTopWidth: 1, borderTopColor: theme.colors.border },
   formTitle: {
     fontSize: 26,
-    fontFamily: theme.fonts.headline,
+    fontFamily: theme.fonts.body,
     color: theme.colors.text,
     marginBottom: 2,
   },
@@ -317,18 +273,16 @@ const createStyles = (theme: any) => StyleSheet.create({
     lineHeight: 20,
   },
   fieldLabel: {
-    fontSize: 11,
+    fontSize: 14,
     fontFamily: theme.fonts.body,
-    letterSpacing: 0.8,
     color: theme.colors.textSecondary,
     marginBottom: 6,
-    textTransform: 'uppercase',
   },
   input: {
     backgroundColor: theme.colors.inputBackground,
     paddingHorizontal: 14,
     paddingVertical: 13,
-    borderRadius: 12,
+    borderRadius: 6,
     fontSize: 16,
     fontFamily: theme.fonts.body,
     borderWidth: 1,
@@ -337,9 +291,9 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginBottom: 10,
   },
   button: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: '#1B6C53',
     padding: 15,
-    borderRadius: 12,
+    borderRadius: 6,
     alignItems: 'center',
     marginTop: 8,
   },
@@ -360,7 +314,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 13,
   },
   linkTextBold: {
-    color: theme.colors.accent,
+    color: theme.colors.primary,
     fontWeight: '700',
   },
   divider: {
@@ -377,13 +331,13 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginHorizontal: 10,
     color: theme.colors.textSecondary,
     fontFamily: theme.fonts.body,
-    fontSize: 11,
+    fontSize: 14,
     letterSpacing: 0.9,
   },
   googleButton: {
     backgroundColor: theme.colors.cardStrong,
     padding: 14,
-    borderRadius: 12,
+    borderRadius: 6,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
@@ -401,7 +355,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginTop: 16,
     padding: 16,
     backgroundColor: theme.colors.cardStrong,
-    borderRadius: 12,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },

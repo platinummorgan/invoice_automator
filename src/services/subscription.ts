@@ -1,3 +1,4 @@
+import * as Crypto from 'expo-crypto';
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
 
@@ -11,14 +12,6 @@ const SUBSCRIPTION_SKUS = {
   PRO_MONTHLY: 'swift_invoice_pro_monthly',
   PRO_ANNUAL: 'swift_invoice_pro_annual',
 } as const;
-
-const SUBSCRIPTION_PRODUCTS: Record<
-  string,
-  { tier: 'monthly_basic' | 'annual_basic'; durationMonths: number }
-> = {
-  [SUBSCRIPTION_SKUS.PRO_MONTHLY]: { tier: 'monthly_basic', durationMonths: 1 },
-  [SUBSCRIPTION_SKUS.PRO_ANNUAL]: { tier: 'annual_basic', durationMonths: 12 },
-};
 
 const SUBSCRIPTION_PRODUCT_IDS = Object.values(SUBSCRIPTION_SKUS);
 
@@ -91,8 +84,14 @@ const initIAP = async () => {
 const isPaidTier = (tier?: string | null) =>
   tier === 'pro' || tier === 'monthly_basic' || tier === 'annual_basic';
 
-const getProfileInvoiceCount = (profile: any) =>
-  Number(profile?.invoice_count_current_month ?? profile?.invoice_count ?? 0);
+const getCurrentMonthInvoiceCount = async (userId: string) => {
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  const { count, error } = await supabase.from('invoices')
+    .select('id', { count: 'exact', head: true }).eq('user_id', userId).gte('created_at', start);
+  if (error) throw error;
+  return count || 0;
+};
 
 const getProfileInvoiceLimit = (profile: any) => {
   const legacyLimit = Number(profile?.invoice_limit);
@@ -103,32 +102,14 @@ const getProfileInvoiceLimit = (profile: any) => {
 const getProfileSubscriptionEndsAt = (profile: any) =>
   profile?.subscription_ends_at || profile?.subscription_expires_at || null;
 
-const updateProfileWithFallback = async (userId: string, payloads: Array<Record<string, any>>) => {
-  let lastError: any = null;
+const isProfilePaid = (profile: any) => isPaidTier(profile.subscription_tier) &&
+  (!profile.subscription_verified_at || (
+    ['active', 'cancelled'].includes(profile.subscription_status) &&
+    Date.parse(profile.subscription_ends_at || '') > Date.now()
+  ));
 
-  for (const payload of payloads) {
-    const { error } = await supabase.from('profiles').update(payload).eq('id', userId);
-    if (!error) return;
-    lastError = error;
-  }
-
-  if (lastError) throw lastError;
-};
-
-const getSubscriptionProduct = (purchase: Purchase) => {
-  const productId = purchase.productId;
-
-  if (!productId) {
-    return SUBSCRIPTION_PRODUCTS[SUBSCRIPTION_SKUS.PRO_MONTHLY];
-  }
-
-  const product = SUBSCRIPTION_PRODUCTS[productId];
-  if (!product) {
-    throw new Error(`Unsupported subscription product: ${productId}`);
-  }
-
-  return product;
-};
+const billingListeners = new Set<(error?: string) => void>();
+const notifyBilling = (error?: string) => billingListeners.forEach(listener => listener(error));
 
 const findSubscriptionPurchase = (purchases: Purchase[]) =>
   purchases.find((purchase) =>
@@ -136,6 +117,10 @@ const findSubscriptionPurchase = (purchases: Purchase[]) =>
   );
 
 export const subscriptionService = {
+  onBillingChange(listener: (error?: string) => void) {
+    billingListeners.add(listener);
+    return () => { billingListeners.delete(listener); };
+  },
   isIapAvailable() {
     return !!getIapModule();
   },
@@ -152,28 +137,24 @@ export const subscriptionService = {
     if (!purchaseUpdateSubscription) {
       // Set up purchase listener once.
       purchaseUpdateSubscription = iap.purchaseUpdatedListener(async (purchase) => {
-        console.log('Purchase updated:', purchase);
+
 
         try {
           // Verify and activate subscription
           await subscriptionService.verifyPurchase(purchase);
 
-          // Acknowledge purchase on Android
-          if (Platform.OS === 'android' && purchase.purchaseToken) {
-            await iap.acknowledgePurchaseAndroid(purchase.purchaseToken);
-          }
-
           // Finish transaction
           await iap.finishTransaction({ purchase, isConsumable: false });
+          notifyBilling();
         } catch (error) {
-          console.error('Error processing purchase:', error);
+          notifyBilling('Your purchase could not be verified yet. Use Restore purchases in Settings to try again.');
         }
       });
     }
 
     if (!purchaseErrorSubscription) {
       purchaseErrorSubscription = iap.purchaseErrorListener((error) => {
-        console.warn('Purchase error:', error);
+        if (error?.code !== 'user-cancelled' && error?.code !== 'E_USER_CANCELLED') notifyBilling('The purchase did not finish. Please try again.');
       });
     }
 
@@ -214,11 +195,11 @@ export const subscriptionService = {
       if (error) throw error;
       if (!profile) return { allowed: true };
 
-      if (isPaidTier(profile.subscription_tier)) {
+      if (isProfilePaid(profile)) {
         return { allowed: true };
       }
 
-      const invoiceCount = getProfileInvoiceCount(profile);
+      const invoiceCount = await getCurrentMonthInvoiceCount(user.id);
       const invoiceLimit = getProfileInvoiceLimit(profile);
 
       if (invoiceCount >= invoiceLimit) {
@@ -256,7 +237,7 @@ export const subscriptionService = {
         .eq('id', user.id)
         .single();
 
-      if (profile && !isPaidTier(profile.subscription_tier)) {
+      if (profile && !isProfilePaid(profile)) {
         await supabase
           .from('profiles')
           .update({ invoice_count: (profile.invoice_count || 0) + 1 })
@@ -281,7 +262,8 @@ export const subscriptionService = {
         .eq('id', user.id)
         .single();
 
-      if (error?.code === 'PGRST116' || !profile) {
+      if (error) throw error;
+      if (!profile) {
         return {
           tier: 'free',
           status: 'free',
@@ -295,9 +277,9 @@ export const subscriptionService = {
 
       if (error) throw error;
 
-      const invoiceCount = getProfileInvoiceCount(profile);
+      const invoiceCount = await getCurrentMonthInvoiceCount(user.id);
       const invoiceLimit = getProfileInvoiceLimit(profile);
-      const paid = isPaidTier(profile.subscription_tier);
+      const paid = isProfilePaid(profile);
 
       return {
         tier: profile.subscription_tier || 'free',
@@ -312,21 +294,19 @@ export const subscriptionService = {
       if (error?.code !== 'PGRST116') {
         console.error('Error getting subscription status:', error);
       }
-      return {
-        tier: 'free',
-        status: 'free',
-        invoiceCount: 0,
-        invoiceLimit: FREE_TIER_LIMIT,
-        expiresAt: null,
-        isPro: false,
-        remainingInvoices: FREE_TIER_LIMIT,
-      };
+      throw error;
     }
   },
 
   // Upgrade to Pro (Google Play Billing integration)
   async upgradeToPro() {
     try {
+      if (Platform.OS !== 'android') throw new Error('Subscriptions are currently available through Google Play on Android.');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Please sign in before upgrading.');
+      const { data: readiness, error: readinessError } = await supabase.functions.invoke('verify-google-purchase', { body: { action: 'ready' } });
+      if (readinessError || !readiness?.ready) throw new Error('Subscription verification is temporarily unavailable. Please try again later.');
+      const accountId = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, user.id);
       const ready = await initIAP();
       if (!ready) {
         throw new Error(
@@ -346,7 +326,11 @@ export const subscriptionService = {
         );
       }
 
-      console.log('Available subscriptions:', subscriptions);
+      const product = subscriptions[0];
+      const offers = product.subscriptionOfferDetailsAndroid || product.subscriptionOfferDetails || product.subscriptionOffers || [];
+      const offer = offers.find((item: any) => !item.offerId && (item.offerToken || item.offerTokenAndroid)) || offers.find((item: any) => item.offerToken || item.offerTokenAndroid);
+      const offerToken = offer?.offerToken || offer?.offerTokenAndroid;
+      if (!offerToken) throw new Error('No eligible subscription offer is available for this Google Play account.');
 
       await iap.requestPurchase({
         type: 'subs',
@@ -355,6 +339,8 @@ export const subscriptionService = {
             ? {
                 android: {
                   skus: [SUBSCRIPTION_SKUS.PRO_MONTHLY],
+                  obfuscatedAccountId: accountId,
+                  subscriptionOffers: [{ sku: SUBSCRIPTION_SKUS.PRO_MONTHLY, offerToken }],
                 },
               }
             : {
@@ -369,47 +355,14 @@ export const subscriptionService = {
     }
   },
 
-  // Verify purchase and update database
+  // The server owns entitlement writes and expiry; the device only supplies a Play token.
   async verifyPurchase(purchase: Purchase) {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const product = getSubscriptionProduct(purchase);
-      const expiresAt = new Date();
-      expiresAt.setMonth(expiresAt.getMonth() + product.durationMonths);
-      const expiresAtISO = expiresAt.toISOString();
-
-      await updateProfileWithFallback(user.id, [
-        {
-          subscription_tier: product.tier,
-          subscription_status: 'active',
-          subscription_ends_at: expiresAtISO,
-        },
-        {
-          subscription_tier: 'pro',
-          subscription_status: 'active',
-          subscription_expires_at: expiresAtISO,
-          google_purchase_token: purchase.purchaseToken || purchase.transactionId,
-        },
-        {
-          subscription_tier: product.tier,
-          subscription_status: 'active',
-        },
-        {
-          subscription_tier: 'pro',
-          subscription_status: 'active',
-        },
-      ]);
-
-      console.log('Subscription activated successfully');
-      return true;
-    } catch (error: any) {
-      console.error('Error verifying purchase:', error);
-      throw error;
-    }
+    if (Platform.OS !== 'android' || !purchase.purchaseToken) throw new Error('A Google Play purchase token is required.');
+    const { data, error } = await supabase.functions.invoke('verify-google-purchase', {
+      body: { purchaseToken: purchase.purchaseToken },
+    });
+    if (error || !data?.verified) throw new Error(data?.error || 'Your purchase could not be verified. Please try restoring it again.');
+    return !!data.isPro;
   },
 
   // Restore purchases (for users who already purchased)
@@ -424,18 +377,12 @@ export const subscriptionService = {
       const iap = requireIapModule();
 
       const purchases = await iap.getAvailablePurchases();
-      console.log('Available purchases:', purchases);
 
-      if (purchases.length > 0) {
-        const proPurchase = findSubscriptionPurchase(purchases);
-
-        if (proPurchase) {
-          await this.verifyPurchase(proPurchase);
-          return true;
-        }
-      }
-
-      return false;
+      const subscriptions = purchases.filter(p => p.productId && SUBSCRIPTION_PRODUCT_IDS.includes(p.productId as any));
+      let active = false;
+      for (const purchase of subscriptions) active = (await this.verifyPurchase(purchase)) || active;
+      notifyBilling();
+      return active;
     } catch (error: any) {
       console.error('Error restoring purchases:', error);
       throw error;

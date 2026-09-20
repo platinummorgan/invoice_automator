@@ -1,4 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import AppIcon from '../components/AppIcon';
+import { parseDisplayDate, calendarDate } from '../utils/invoiceValues';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { shareInvoicePdf } from '../services/invoicePdf';
 import {
   View,
   Text,
@@ -101,12 +105,14 @@ export default function InvoiceDetailScreen({
   route,
 }: InvoiceDetailScreenProps) {
   const { theme, isDark } = useTheme();
-  const styles = createStyles(theme);
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { invoiceId } = route.params;
   const insets = useSafeAreaInsets();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [markingSent, setMarkingSent] = useState(false);
+  const [sharingPdf, setSharingPdf] = useState(false);
   const [sendingReceipt, setSendingReceipt] = useState(false);
   const [showVoidModal, setShowVoidModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -119,21 +125,27 @@ export default function InvoiceDetailScreen({
   const [templateSettings, setTemplateSettings] =
     useState<InvoiceTemplateSettings>(DEFAULT_TEMPLATE_SETTINGS);
   const [paymentInstructions, setPaymentInstructions] = useState<string | null>(null);
-  const previewPalette = getPreviewPalette(invoiceTemplate, templateSettings, theme);
-  const highlightedTotalColor = getReadableAccent(previewPalette.accent, theme, isDark);
+  const previewPalette = useMemo(
+    () => getPreviewPalette(invoiceTemplate, templateSettings, theme),
+    [invoiceTemplate, templateSettings, theme]
+  );
+  const highlightedTotalColor = useMemo(
+    () => getReadableAccent(previewPalette.accent, theme, isDark),
+    [previewPalette.accent, theme, isDark]
+  );
 
-  useEffect(() => {
+  useFocusEffect(React.useCallback(() => {
     loadInvoice();
     loadProfileData();
-  }, []);
+  }, [invoiceId]));
 
   const fetchProfileBranding = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return null;
+    if (!user) throw new Error('Please sign in again to load your business and payment details.');
 
-    const { data: profile } = await supabase
+    const { data: profile, error } = await supabase
       .from('profiles')
       .select(
         'business_name, business_address, business_phone, payment_instructions, payment_methods, logo_url, invoice_template, template_settings'
@@ -141,7 +153,7 @@ export default function InvoiceDetailScreen({
       .eq('id', user.id)
       .single();
 
-    if (!profile) return null;
+    if (error || !profile) throw new Error('Unable to load your business and payment details. Check your connection and try again.');
 
     return {
       business_name: profile.business_name,
@@ -195,6 +207,22 @@ export default function InvoiceDetailScreen({
     }
   };
 
+  // Fetch at export time so an early tap or changed settings cannot produce an
+  // invoice with empty/stale payment details. A failed fetch must stop export.
+  const getExportBranding = async () => {
+    const profile = await fetchProfileBranding();
+    return {
+      paymentMethods: profile.payment_methods,
+      paymentInstructions: profile.payment_instructions || undefined,
+      businessName: profile.business_name || 'Swift Invoice',
+      businessAddress: profile.business_address || undefined,
+      businessPhone: profile.business_phone || undefined,
+      logoUrl: profile.logo_url || undefined,
+      invoiceTemplate: profile.invoice_template || 'classic',
+      templateSettings: profile.template_settings,
+    };
+  };
+
   const handleMarkAsPaid = async () => {
     if (!invoice) return;
 
@@ -208,9 +236,8 @@ export default function InvoiceDetailScreen({
           style: 'default',
           onPress: async () => {
             try {
-              const paidAt = new Date().toISOString();
-              await invoiceService.updateInvoiceStatus(invoice.id, 'paid');
-              await paymentService.recordManualPayment(invoice.id, invoice.total, paidAt);
+              const payment = await paymentService.recordManualPayment(invoice.id);
+              const paidAt = payment.paid_at;
 
               await loadInvoice();
 
@@ -227,7 +254,6 @@ export default function InvoiceDetailScreen({
                   onPress: async () => {
                     setSendingReceipt(true);
                     try {
-                      const profile = await fetchProfileBranding();
                       const receiptResult = await sendReceiptEmail({
                         invoice: { ...invoice, status: 'paid', paid_at: paidAt },
                         items: invoice.items || [],
@@ -235,12 +261,12 @@ export default function InvoiceDetailScreen({
                         paidAt,
                         paymentMethodLabel: 'Manual Payment',
                         receiptReference: invoice.invoice_number,
-                        businessName: profile?.business_name || businessName,
-                        businessAddress: profile?.business_address || businessAddress || undefined,
-                        businessPhone: profile?.business_phone || businessPhone || undefined,
-                        logoUrl: profile?.logo_url || logoUrl || undefined,
-                        invoiceTemplate: (profile?.invoice_template || invoiceTemplate) as InvoiceTemplate,
-                        templateSettings: profile?.template_settings || templateSettings,
+                        businessName,
+                        businessAddress: businessAddress || undefined,
+                        businessPhone: businessPhone || undefined,
+                        logoUrl: logoUrl || undefined,
+                        invoiceTemplate,
+                        templateSettings,
                       });
 
                       if (receiptResult.success) {
@@ -316,20 +342,11 @@ export default function InvoiceDetailScreen({
           onPress: async () => {
             setSendingEmail(true);
             try {
-              const profile = await fetchProfileBranding();
-
               const result = await sendInvoiceEmail({
                 invoice,
                 items: invoice.items || [],
                 customer: invoice.customer!,
-                paymentMethods: profile?.payment_methods,
-                paymentInstructions: profile?.payment_instructions,
-                businessName: profile?.business_name,
-                businessAddress: profile?.business_address,
-                businessPhone: profile?.business_phone,
-                logoUrl: profile?.logo_url,
-                invoiceTemplate: profile?.invoice_template,
-                templateSettings: profile?.template_settings,
+                ...await getExportBranding(),
               });
 
               if (result.success) {
@@ -342,7 +359,7 @@ export default function InvoiceDetailScreen({
                       text: 'Mark as Sent',
                       onPress: async () => {
                         try {
-                          await invoiceService.updateInvoiceStatus(invoice.id, 'sent');
+                          await invoiceService.markInvoiceSent(invoice.id);
                           await loadInvoice();
                         } catch (error: any) {
                           Alert.alert('Error', error.message);
@@ -390,7 +407,6 @@ export default function InvoiceDetailScreen({
           onPress: async () => {
             setSendingReceipt(true);
             try {
-              const profile = await fetchProfileBranding();
               const latestPayment = await paymentService.getPaymentStatus(invoice.id);
               const result = await sendReceiptEmail({
                 invoice,
@@ -399,12 +415,12 @@ export default function InvoiceDetailScreen({
                 paidAt: latestPayment?.paid_at || invoice.paid_at,
                 paymentMethodLabel: 'Manual Payment',
                 receiptReference: invoice.invoice_number,
-                businessName: profile?.business_name || businessName,
-                businessAddress: profile?.business_address || businessAddress || undefined,
-                businessPhone: profile?.business_phone || businessPhone || undefined,
-                logoUrl: profile?.logo_url || logoUrl || undefined,
-                invoiceTemplate: (profile?.invoice_template || invoiceTemplate) as InvoiceTemplate,
-                templateSettings: profile?.template_settings || templateSettings,
+                businessName,
+                businessAddress: businessAddress || undefined,
+                businessPhone: businessPhone || undefined,
+                logoUrl: logoUrl || undefined,
+                invoiceTemplate,
+                templateSettings,
               });
 
               if (result.success) {
@@ -430,7 +446,7 @@ export default function InvoiceDetailScreen({
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseDisplayDate(dateString);
     return date.toLocaleDateString('en-US', {
       month: 'long',
       day: 'numeric',
@@ -441,22 +457,51 @@ export default function InvoiceDetailScreen({
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'paid':
-        return '#4CAF50';
+        return theme.colors.primary;
       case 'sent':
-        return '#2196F3';
+        return invoice && invoice.due_date < calendarDate(new Date()) ? theme.colors.error : theme.colors.textSecondary;
       case 'overdue':
-        return '#F44336';
+        return theme.colors.error;
       case 'void':
-        return '#757575';
+        return theme.colors.textSecondary;
       case 'draft':
-        return '#9E9E9E';
+        return theme.colors.textSecondary;
       default:
-        return '#9E9E9E';
+        return theme.colors.textSecondary;
     }
   };
 
   const getStatusLabel = (status: string) => {
-    return status === 'draft' ? 'open' : status;
+    if (status === 'sent' && invoice && invoice.due_date < calendarDate(new Date())) return 'Overdue';
+    return ({ draft: 'Draft', sent: 'Sent', paid: 'Paid', overdue: 'Overdue', void: 'Voided', cancelled: 'Cancelled' } as Record<string, string>)[status] || status;
+  };
+
+  const handleMarkSent = () => {
+    if (!invoice || invoice.status !== 'draft' || markingSent) return;
+    Alert.alert('Mark invoice as sent?', 'Confirm you have sent this invoice to your customer. It will count as outstanding and can no longer be edited as a draft.', [
+      { text: 'Not yet', style: 'cancel' },
+      { text: 'Mark as sent', onPress: async () => {
+        setMarkingSent(true);
+        try { await invoiceService.markInvoiceSent(invoice.id); await loadInvoice(); }
+        catch (error: any) { Alert.alert('Unable to mark as sent', error.message); }
+        finally { setMarkingSent(false); }
+      } },
+    ]);
+  };
+
+  const handleSharePdf = async () => {
+    if (!invoice?.customer || sharingPdf) return;
+    setSharingPdf(true);
+    try {
+      await shareInvoicePdf({
+        invoice, items: invoice.items || [], customer: invoice.customer,
+        ...await getExportBranding(),
+      });
+    } catch (error: any) {
+      Alert.alert('Unable to share PDF', error.message);
+    } finally {
+      setSharingPdf(false);
+    }
   };
 
   if (loading) {
@@ -481,23 +526,23 @@ export default function InvoiceDetailScreen({
         {/* Header */}
         <View style={styles.headerCard}>
           <View style={styles.headerTopRow}>
-            <View>
-              <Text style={styles.headerEyebrow}>Invoice</Text>
-              <Text style={styles.invoiceNumber}>{invoice.invoice_number}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.headerEyebrow}>{invoice.invoice_number}</Text>
+              <Text style={styles.invoiceNumber}>{invoice.customer_name || invoice.customer?.name || 'Invoice'}</Text>
             </View>
             <View
               style={[
                 styles.statusBadge,
-                { backgroundColor: getStatusColor(invoice.status) },
+                { borderColor: getStatusColor(invoice.status) },
               ]}
             >
-              <Text style={styles.statusText}>{getStatusLabel(invoice.status).toUpperCase()}</Text>
+              <Text style={[styles.statusText, { color: getStatusColor(invoice.status) }]}>{getStatusLabel(invoice.status)}</Text>
             </View>
           </View>
 
           <View style={styles.headerMetaRow}>
             <View style={styles.headerMetaItem}>
-              <Text style={styles.headerMetaLabel}>Issue</Text>
+              <Text style={styles.headerMetaLabel}>Issued</Text>
               <Text style={styles.headerMetaValue}>{formatDate(invoice.issue_date)}</Text>
             </View>
             <View style={styles.headerMetaItem}>
@@ -533,7 +578,7 @@ export default function InvoiceDetailScreen({
         {/* Void Notice */}
         {invoice.status === 'void' && invoice.void_reason && (
           <View style={styles.voidNotice}>
-            <Text style={styles.voidTitle}>⚠️ VOID - Invoice Cancelled</Text>
+            <Text style={styles.voidTitle}>Invoice voided</Text>
             <Text style={styles.voidReason}>Reason: {invoice.void_reason}</Text>
             {invoice.voided_at && (
               <Text style={styles.voidDate}>
@@ -545,7 +590,7 @@ export default function InvoiceDetailScreen({
 
         {/* Customer Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Bill To</Text>
+          <Text style={styles.sectionTitle}>Bill to</Text>
           <Text style={styles.customerName}>{invoice.customer?.name || invoice.customer_name || 'No customer'}</Text>
           {invoice.customer?.email && (
             <Text style={styles.customerDetail}>{invoice.customer.email}</Text>
@@ -589,9 +634,7 @@ export default function InvoiceDetailScreen({
               style={[
                 styles.grandTotalValue,
                 {
-                  color: templateSettings.highlight_totals
-                    ? highlightedTotalColor
-                    : theme.colors.text,
+                  color: theme.colors.primary,
                 },
               ]}
             >
@@ -608,9 +651,32 @@ export default function InvoiceDetailScreen({
           </View>
         )}
 
+        {invoice.status === 'draft' && (
+          <View style={styles.actionRow}>
+            <TouchableOpacity accessibilityRole="button" style={styles.previewButton}
+              onPress={() => navigation.navigate('NewInvoice', { invoiceId: invoice.id })}>
+              <Text style={styles.previewButtonText}>Edit draft</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {invoice.status !== 'void' && invoice.status !== 'cancelled' && (
+          <View style={styles.actionRow}>
+            <TouchableOpacity accessibilityRole="button" style={styles.previewButton} disabled={sharingPdf}
+              onPress={handleSharePdf}>
+              <Text style={styles.previewButtonText}>{sharingPdf ? 'Preparing PDF…' : 'Share / save PDF'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {invoice.status === 'draft' && <View style={styles.actionRow}>
+          <TouchableOpacity accessibilityRole="button" disabled={markingSent} style={styles.previewButton} onPress={handleMarkSent}>
+            <Text style={styles.previewButtonText}>{markingSent ? 'Updating…' : 'Mark as sent'}</Text>
+          </TouchableOpacity>
+        </View>}
+
         {/* Receipt Actions */}
         {invoice.status === 'paid' && (
-          <View style={styles.section}>
+          <View style={styles.actionRow}>
             <TouchableOpacity
               style={[styles.receiptButton, sendingReceipt && styles.buttonDisabled]}
               onPress={handleSendReceipt}
@@ -619,39 +685,28 @@ export default function InvoiceDetailScreen({
               {sendingReceipt ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.receiptButtonText}>Send Receipt Email</Text>
+                <Text style={styles.receiptButtonText}>Email receipt</Text>
               )}
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Preview & Send Section */}
-        {invoice.status !== 'paid' && invoice.status !== 'void' && (
-          <View style={styles.section}>
-            <TouchableOpacity
-              style={styles.previewButton}
-              onPress={() => setShowPreviewModal(true)}
-            >
-              <Text style={styles.previewButtonText}>Preview Invoice</Text>
+        {!['paid', 'void', 'cancelled'].includes(invoice.status) && (
+          <View style={styles.actionRow}>
+            <TouchableOpacity accessibilityRole="button" style={styles.previewButton} onPress={handleMarkAsPaid}>
+              <Text style={styles.previewButtonText}>Record full payment</Text>
+            </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" style={styles.previewButton} onPress={handleVoidInvoice}>
+              <Text style={[styles.previewButtonText, { color: theme.colors.textSecondary }]}>Void invoice</Text>
             </TouchableOpacity>
           </View>
         )}
       </ScrollView>
 
-      {/* Bottom Actions */}
-      {invoice.status !== 'paid' && invoice.status !== 'void' && (
-        <View style={styles.bottomActions}>
-          <TouchableOpacity
-            style={styles.voidButton}
-            onPress={handleVoidInvoice}
-          >
-            <Text style={styles.voidButtonText}>Void Invoice</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.markPaidButton}
-            onPress={handleMarkAsPaid}
-          >
-            <Text style={styles.markPaidButtonText}>Mark as Paid</Text>
+      {!['paid', 'void', 'cancelled'].includes(invoice.status) && (
+        <View style={[styles.bottomActions, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <TouchableOpacity accessibilityRole="button" style={styles.markPaidButton} onPress={() => setShowPreviewModal(true)}>
+            <Text style={styles.markPaidButtonText}>Preview & share</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -663,14 +718,15 @@ export default function InvoiceDetailScreen({
         onRequestClose={() => setShowPreviewModal(false)}
       >
         <View style={styles.previewContainer}>
-          <View style={styles.previewHeader}>
+          <View style={[styles.previewHeader, { paddingTop: Math.max(insets.top, 12) }]}>
             <TouchableOpacity
               onPress={() => setShowPreviewModal(false)}
               style={styles.previewBackButton}
+              accessibilityRole="button" accessibilityLabel="Close invoice preview"
             >
-              <Text style={styles.previewBackButtonText}>← Back</Text>
+              <AppIcon name="close" color={theme.colors.text} />
             </TouchableOpacity>
-            <Text style={styles.previewTitle}>Invoice Preview</Text>
+            <Text style={styles.previewTitle}>Preview</Text>
             <View style={styles.previewHeaderSpacer} />
           </View>
           
@@ -815,25 +871,14 @@ export default function InvoiceDetailScreen({
             )}
           </ScrollView>
 
-          {/* Send Email Button */}
-          <View style={[styles.previewActions, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
-            <TouchableOpacity
-              style={[
-                styles.sendEmailButton,
-                { flex: 0, width: '100%', backgroundColor: previewPalette.accent },
-                sendingEmail && styles.buttonDisabled,
-              ]}
-              onPress={() => {
-                setShowPreviewModal(false);
-                handleSendEmail();
-              }}
-              disabled={sendingEmail}
-            >
-              {sendingEmail ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.sendEmailButtonText}>Send Invoice Email</Text>
-              )}
+          <View style={[styles.previewActions, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+            {invoice.customer?.email ? <TouchableOpacity accessibilityRole="button" style={styles.previewButton} disabled={sendingEmail}
+              onPress={() => { setShowPreviewModal(false); handleSendEmail(); }}>
+              <Text style={styles.previewButtonText}>{sendingEmail ? 'Opening email…' : 'Open email draft'}</Text>
+            </TouchableOpacity> : null}
+            <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: sharingPdf, busy: sharingPdf }}
+              style={[styles.sendEmailButton, { flex: 0 }, sharingPdf && styles.buttonDisabled]} onPress={handleSharePdf} disabled={sharingPdf}>
+              {sharingPdf ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.sendEmailButtonText}>Share / save PDF</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -854,7 +899,7 @@ export default function InvoiceDetailScreen({
             </Text>
             <TextInput
               style={styles.modalInput}
-              placeholder="Enter void reason..."
+              placeholder="e.g., Pricing error, duplicate invoice, customer request"
               placeholderTextColor={theme.colors.placeholder}
               value={voidReason}
               onChangeText={setVoidReason}
@@ -887,6 +932,7 @@ export default function InvoiceDetailScreen({
 }
 
 const createStyles = (theme: any) => StyleSheet.create({
+  actionRow: { paddingVertical: 4, borderBottomWidth: 1, borderColor: theme.colors.border },
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -909,95 +955,19 @@ const createStyles = (theme: any) => StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 100,
-  },
-  headerCard: {
-    backgroundColor: theme.colors.cardStrong,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
-    elevation: 1,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  headerEyebrow: {
-    fontSize: 12,
-    color: theme.colors.accent,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    marginBottom: 4,
-    fontFamily: theme.fonts.body,
-  },
-  invoiceNumber: {
-    fontSize: 24,
-    color: theme.colors.text,
-    fontFamily: theme.fonts.headline,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  statusText: {
-    fontSize: 10,
-    color: '#fff',
-    fontFamily: theme.fonts.body,
-  },
-  headerMetaRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  headerMetaItem: {
-    flex: 1,
-    backgroundColor: theme.colors.card,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-  },
-  headerMetaLabel: {
-    fontSize: 11,
-    color: theme.colors.textSecondary,
-    marginBottom: 3,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    fontFamily: theme.fonts.body,
-  },
-  headerMetaValue: {
-    fontSize: 12,
-    color: theme.colors.text,
-    fontFamily: theme.fonts.headline,
-  },
-  section: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: 14,
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    color: theme.colors.accent,
-    marginBottom: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontFamily: theme.fonts.body,
-  },
+  content: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24 },
+  headerCard: { paddingBottom: 22, marginBottom: 4, borderBottomWidth: 1, borderColor: theme.colors.border },
+  headerTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 24 },
+  headerEyebrow: { fontFamily: theme.fonts.body, fontSize: 12, color: theme.colors.textSecondary, marginBottom: 8 },
+  invoiceNumber: { fontFamily: theme.fonts.body, fontSize: 26, lineHeight: 33, fontWeight: '600', color: theme.colors.text },
+  statusBadge: { paddingVertical: 6, paddingHorizontal: 9, borderWidth: 1, borderRadius: 6 },
+  statusText: { fontFamily: theme.fonts.body, fontSize: 12, fontWeight: '500' },
+  headerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  headerMetaItem: { flexGrow: 1, flexBasis: 110, gap: 4 },
+  headerMetaLabel: { fontFamily: theme.fonts.body, fontSize: 12, color: theme.colors.textSecondary },
+  headerMetaValue: { fontFamily: theme.fonts.body, fontSize: 14, color: theme.colors.text, fontVariant: ['tabular-nums'] },
+  section: { paddingVertical: 20, borderBottomWidth: 1, borderColor: theme.colors.border },
+  sectionTitle: { fontFamily: theme.fonts.body, fontSize: 13, fontWeight: '500', color: theme.colors.textSecondary, marginBottom: 12 },
   brandingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1008,12 +978,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     height: 40,
     borderRadius: 6,
   },
-  brandingBusinessName: {
-    fontSize: 20,
-    color: theme.colors.text,
-    marginBottom: 2,
-    fontFamily: theme.fonts.headline,
-  },
+  brandingBusinessName: { fontFamily: theme.fonts.body, fontSize: 16, fontWeight: '600', color: theme.colors.text, marginBottom: 4 },
   brandingTextBlock: {
     flex: 1,
   },
@@ -1022,53 +987,19 @@ const createStyles = (theme: any) => StyleSheet.create({
     color: theme.colors.textSecondary,
     fontFamily: theme.fonts.body,
   },
-  customerName: {
-    fontSize: 20,
-    color: theme.colors.text,
-    marginBottom: 4,
-    fontFamily: theme.fonts.headline,
-  },
+  customerName: { fontFamily: theme.fonts.body, fontSize: 17, fontWeight: '600', color: theme.colors.text, marginBottom: 4 },
   customerDetail: {
     fontSize: 13,
     color: theme.colors.textSecondary,
     marginBottom: 2,
     fontFamily: theme.fonts.body,
   },
-  itemRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  itemDescription: {
-    flex: 1,
-  },
-  itemText: {
-    fontSize: 14,
-    color: theme.colors.text,
-    marginBottom: 4,
-    fontFamily: theme.fonts.body,
-  },
-  itemSubtext: {
-    fontSize: 12,
-    color: theme.colors.placeholder,
-    fontFamily: theme.fonts.body,
-  },
-  itemAmount: {
-    fontSize: 14,
-    color: theme.colors.text,
-    fontFamily: theme.fonts.headline,
-  },
-  totalsSection: {
-    backgroundColor: theme.colors.cardStrong,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: 14,
-    marginBottom: 12,
-  },
+  itemRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 16, paddingVertical: 10 },
+  itemDescription: { flex: 1, minWidth: 140 },
+  itemText: { fontFamily: theme.fonts.body, fontSize: 15, lineHeight: 22, color: theme.colors.text, marginBottom: 4 },
+  itemSubtext: { fontFamily: theme.fonts.body, fontSize: 12, color: theme.colors.textSecondary },
+  itemAmount: { fontFamily: theme.fonts.body, fontSize: 15, fontWeight: '600', color: theme.colors.text, fontVariant: ['tabular-nums'] },
+  totalsSection: { paddingVertical: 24, borderBottomWidth: 1, borderColor: theme.colors.border },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1091,40 +1022,12 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginTop: 8,
     marginBottom: 0,
   },
-  grandTotalLabel: {
-    fontSize: 17,
-    color: theme.colors.text,
-    fontFamily: theme.fonts.headline,
-  },
-  grandTotalValue: {
-    fontSize: 23,
-    color: theme.colors.accent,
-    fontFamily: theme.fonts.headline,
-  },
-  notesText: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    lineHeight: 18,
-    fontFamily: theme.fonts.body,
-  },
-  sendEmailButton: {
-    flex: 1,
-    backgroundColor: theme.colors.info,
-    padding: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  sendEmailButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  receiptButton: {
-    backgroundColor: theme.colors.success,
-    padding: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
+  grandTotalLabel: { fontFamily: theme.fonts.body, fontSize: 19, fontWeight: '600', color: theme.colors.text },
+  grandTotalValue: { fontFamily: theme.fonts.body, fontSize: 26, fontWeight: '600', color: theme.colors.primary, fontVariant: ['tabular-nums'] },
+  notesText: { fontFamily: theme.fonts.body, fontSize: 14, lineHeight: 22, color: theme.colors.textSecondary },
+  sendEmailButton: { backgroundColor: '#1B6C53', minHeight: 48, padding: 14, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  sendEmailButtonText: { fontFamily: theme.fonts.body, color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  receiptButton: { backgroundColor: '#1B6C53', minHeight: 48, padding: 14, borderRadius: 8, alignItems: 'center' },
   receiptButtonText: {
     color: '#fff',
     fontSize: 15,
@@ -1133,15 +1036,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   buttonDisabled: {
     opacity: 0.6,
   },
-  bottomActions: {
-    flexDirection: 'row',
-    gap: 12,
-    padding: 16,
-    paddingBottom: 48,
-    backgroundColor: theme.colors.background,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
+  bottomActions: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: theme.colors.card, borderTopWidth: 1, borderColor: theme.colors.border },
   voidButton: {
     flex: 1,
     backgroundColor: theme.colors.error,
@@ -1154,32 +1049,10 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 15,
     fontFamily: theme.fonts.body,
   },
-  markPaidButton: {
-    flex: 1,
-    backgroundColor: theme.colors.success,
-    padding: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  markPaidButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontFamily: theme.fonts.body,
-  },
-  voidNotice: {
-    backgroundColor: `${theme.colors.warning}20`,
-    borderWidth: 1,
-    borderColor: `${theme.colors.warning}66`,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  voidTitle: {
-    fontSize: 16,
-    fontFamily: theme.fonts.headline,
-    color: theme.colors.warning,
-    marginBottom: 8,
-  },
+  markPaidButton: { minHeight: 48, backgroundColor: '#1B6C53', padding: 14, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  markPaidButtonText: { fontFamily: theme.fonts.body, color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  voidNotice: { borderLeftWidth: 2, borderColor: theme.colors.textSecondary, paddingLeft: 16, paddingVertical: 12, marginVertical: 16 },
+  voidTitle: { fontFamily: theme.fonts.body, fontSize: 16, fontWeight: '600', color: theme.colors.text, marginBottom: 8 },
   voidReason: {
     fontSize: 14,
     color: theme.colors.text,
@@ -1259,17 +1132,8 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 15,
     fontFamily: theme.fonts.body,
   },
-  previewButton: {
-    backgroundColor: theme.colors.accent,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  previewButtonText: {
-    color: '#FBF7EF',
-    fontSize: 15,
-    fontFamily: theme.fonts.body,
-  },
+  previewButton: { minHeight: 48, justifyContent: 'center', paddingVertical: 12 },
+  previewButtonText: { fontFamily: theme.fonts.body, fontSize: 14, fontWeight: '600', color: theme.colors.primary },
   previewContainer: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -1284,9 +1148,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderBottomColor: theme.colors.border,
     backgroundColor: theme.colors.card,
   },
-  previewBackButton: {
-    minWidth: 64,
-  },
+  previewBackButton: { minHeight: 44, minWidth: 44, justifyContent: 'center' },
   previewBackButtonText: {
     fontSize: 16,
     color: theme.colors.primary,
@@ -1297,9 +1159,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.text,
   },
-  previewHeaderSpacer: {
-    width: 64,
-  },
+  previewHeaderSpacer: { width: 44 },
   previewScroll: {
     flex: 1,
   },
@@ -1480,11 +1340,5 @@ const createStyles = (theme: any) => StyleSheet.create({
     lineHeight: 20,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
-  previewActions: {
-    padding: 16,
-    paddingBottom: 16,
-    backgroundColor: theme.colors.card,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
+  previewActions: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: theme.colors.card, borderTopWidth: 1, borderColor: theme.colors.border },
 });

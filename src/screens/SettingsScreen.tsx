@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import AppIcon from '../components/AppIcon';
+import { preparePaymentMethods } from '../utils/paymentMethods';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,6 +15,8 @@ import {
   Platform,
   Image,
   Switch,
+  Linking,
+  AppState,
 } from 'react-native';
 import Constants from 'expo-constants';
 import * as Application from 'expo-application';
@@ -42,6 +47,38 @@ interface SettingsScreenProps {
 }
 
 const LOGO_BUCKET = 'logos';
+
+function formatBusinessPhone(value: string) {
+  const digitsOnly = value.replace(/\D/g, '');
+  const normalizedDigits =
+    digitsOnly.length === 11 && digitsOnly.startsWith('1')
+      ? digitsOnly.slice(1)
+      : digitsOnly.slice(0, 10);
+  if (normalizedDigits.length === 0) return '';
+  if (normalizedDigits.length < 4) return `(${normalizedDigits}`;
+  if (normalizedDigits.length < 7) {
+    return `(${normalizedDigits.slice(0, 3)}) ${normalizedDigits.slice(3)}`;
+  }
+  return `(${normalizedDigits.slice(0, 3)}) ${normalizedDigits.slice(3, 6)}-${normalizedDigits.slice(6)}`;
+}
+
+function getLogoPath(userId: string) {
+  return `${userId}/logo`;
+}
+
+function normalizePaymentMethods(raw: unknown): BusinessPaymentMethod[] {
+  if (!Array.isArray(raw)) return [];
+  const allowedTypes = new Set(PAYMENT_METHOD_OPTIONS.map((o) => o.type));
+  return raw
+    .map((entry) => {
+      const type = String((entry as any)?.type || '').trim() as PaymentMethodType;
+      const label = String((entry as any)?.label || '').trim();
+      const value = String((entry as any)?.value || '').trim();
+      if (!type || !label || !allowedTypes.has(type)) return null;
+      return { type, label, value };
+    })
+    .filter((entry): entry is BusinessPaymentMethod => !!entry);
+}
 const INVOICE_TEMPLATE_OPTIONS: Array<{ value: InvoiceTemplate; title: string; subtitle: string }> = [
   { value: 'classic', title: 'Classic', subtitle: 'Balanced and professional' },
   { value: 'painter', title: 'Painter', subtitle: 'Bold layout for service trades' },
@@ -64,9 +101,13 @@ const PAYMENT_METHOD_OPTIONS: Array<{
 
 export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { theme, themeMode, setThemeMode } = useTheme();
-  const styles = createStyles(theme);
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [loading, setLoading] = useState(true);
+  const [profileError, setProfileError] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+  const insets = useSafeAreaInsets();
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [templateSettings, setTemplateSettings] =
     useState<InvoiceTemplateSettings>(DEFAULT_TEMPLATE_SETTINGS);
@@ -90,6 +131,12 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   useEffect(() => {
     loadProfile();
     loadSubscription();
+    const foreground = AppState.addEventListener('change', state => { if (state === 'active') loadSubscription(); });
+    const unsubscribe = subscriptionService.onBillingChange((error) => {
+      loadSubscription();
+      if (error) Alert.alert('Subscription update', error);
+    });
+    return () => { foreground.remove(); unsubscribe(); };
   }, []);
 
   const getAppVersionLabel = () => {
@@ -101,43 +148,12 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     const version = expoVersion || Application.nativeApplicationVersion || 'unknown';
 
     if (Platform.OS === 'android') {
-      const code = androidVersionCode ?? Application.nativeBuildVersion;
+      const code = Application.nativeBuildVersion ?? androidVersionCode;
       return code ? `Version ${version} (${code})` : `Version ${version}`;
     }
 
-    const build = iosBuildNumber ?? Application.nativeBuildVersion;
+    const build = Application.nativeBuildVersion ?? iosBuildNumber;
     return build ? `Version ${version} (${build})` : `Version ${version}`;
-  };
-
-  const formatBusinessPhone = (value: string) => {
-    const digitsOnly = value.replace(/\D/g, '');
-    const normalizedDigits =
-      digitsOnly.length === 11 && digitsOnly.startsWith('1')
-        ? digitsOnly.slice(1)
-        : digitsOnly.slice(0, 10);
-
-    if (normalizedDigits.length === 0) return '';
-    if (normalizedDigits.length < 4) return `(${normalizedDigits}`;
-    if (normalizedDigits.length < 7) {
-      return `(${normalizedDigits.slice(0, 3)}) ${normalizedDigits.slice(3)}`;
-    }
-    return `(${normalizedDigits.slice(0, 3)}) ${normalizedDigits.slice(3, 6)}-${normalizedDigits.slice(6)}`;
-  };
-
-  const normalizePaymentMethods = (raw: unknown): BusinessPaymentMethod[] => {
-    if (!Array.isArray(raw)) return [];
-
-    const allowedTypes = new Set(PAYMENT_METHOD_OPTIONS.map((option) => option.type));
-
-    return raw
-      .map((entry) => {
-        const type = String((entry as any)?.type || '').trim() as PaymentMethodType;
-        const label = String((entry as any)?.label || '').trim();
-        const value = String((entry as any)?.value || '').trim();
-        if (!type || !label || !allowedTypes.has(type)) return null;
-        return { type, label, value };
-      })
-      .filter((entry): entry is BusinessPaymentMethod => !!entry);
   };
 
   const getMethodOption = (type: PaymentMethodType) =>
@@ -167,6 +183,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   };
 
   const loadProfile = async () => {
+    setLoading(true);
+    setProfileError(false);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -201,7 +219,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         });
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      setProfileError(true);
     } finally {
       setLoading(false);
     }
@@ -212,6 +230,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       const status = await subscriptionService.getSubscriptionStatus();
       setSubscriptionStatus(status);
     } catch (error: any) {
+      setSubscriptionStatus(null);
       // Ignore "no rows" errors (user doesn't have subscription)
       if (error?.code !== 'PGRST116') {
         console.error('Error loading subscription:', error);
@@ -219,13 +238,31 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
+  const handleManageSubscription = async () => {
+    try {
+      await Linking.openURL('https://play.google.com/store/account/subscriptions');
+    } catch {
+      Alert.alert('Open Google Play', 'Open Play Store → Payments & subscriptions → Subscriptions to manage Swift Invoice.');
+    }
+  };
+
+  const handleRestore = async () => {
+    setRestoring(true);
+    try {
+      const restored = await subscriptionService.restorePurchases();
+      await loadSubscription();
+      Alert.alert(restored ? 'Purchase verified' : 'No active subscription found', restored ? 'Your remaining Pro access has been verified with Google Play. Restoring does not restart a canceled subscription.' : 'Check that Google Play is using the account you purchased with.');
+    } catch { Alert.alert('Restore unavailable', 'Your purchase could not be verified. Try again later or contact support.'); }
+    finally { setRestoring(false); }
+  };
+
   const handleUpgrade = async () => {
     try {
-      setLoading(true);
+      setUpgrading(true);
       await subscriptionService.upgradeToPro();
       // Success will be handled by the purchase listener
       // Reload subscription status after purchase
-      setTimeout(() => loadSubscription(), 2000);
+      await loadSubscription();
     } catch (error: any) {
       Alert.alert(
         'Upgrade Error',
@@ -233,11 +270,9 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         [{ text: 'OK' }]
       );
     } finally {
-      setLoading(false);
+      setUpgrading(false);
     }
   };
-
-  const getLogoPath = (userId: string) => `${userId}/logo`;
 
   const handleUploadLogo = async () => {
     try {
@@ -264,6 +299,11 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         Alert.alert('Logo Too Large', 'Please choose an image smaller than 2 MB.');
         return;
       }
+      const contentType = asset.mimeType || 'image/jpeg';
+      if (!contentType.startsWith('image/')) {
+        Alert.alert('Invalid File', 'Please select an image file (JPEG, PNG, or WebP).');
+        return;
+      }
 
       setUploadingLogo(true);
       const {
@@ -273,7 +313,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
       const fileResponse = await fetch(asset.uri);
       const arrayBuffer = await fileResponse.arrayBuffer();
-      const contentType = asset.mimeType || 'image/jpeg';
 
       const { error: uploadError } = await supabase.storage
         .from(LOGO_BUCKET)
@@ -438,12 +477,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
-      const methodsForSave = paymentMethods
-        .map((method) => ({
-          ...method,
-          value: method.value.trim(),
-        }))
-        .filter((method) => method.value.length > 0);
+      const methodsForSave = preparePaymentMethods(paymentMethods);
 
       const { error } = await supabase
         .from('profiles')
@@ -458,8 +492,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
       if (error) throw error;
 
-      Alert.alert('Success', 'Settings saved successfully');
-      navigation.goBack();
+      setPaymentMethods(methodsForSave);
+      Alert.alert('Saved', 'Your business details and payment instructions have been saved.');
     } catch (error: any) {
       Alert.alert('Error', error.message);
     } finally {
@@ -489,803 +523,142 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     );
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
-
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.pageIntroCard}>
-          <Text style={styles.pageIntroKicker}>CONTROL CENTER</Text>
-          <Text style={styles.pageIntroTitle}>Business Settings</Text>
-          <Text style={styles.pageIntroSubtitle}>
-            Tune your brand, billing profile, and account defaults in one place.
-          </Text>
-        </View>
-
-        {/* Subscription Section */}
-        {subscriptionStatus && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Subscription</Text>
-            
-            <View style={[styles.subscriptionCard, subscriptionStatus.isPro && styles.subscriptionCardPro]}>
-              <View style={styles.subscriptionHeader}>
-                <Text style={styles.subscriptionTier}>
-                  {subscriptionStatus.isPro ? '⭐ Pro' : '🆓 Free'}
-                </Text>
-                {subscriptionStatus.isPro && (
-                  <Text style={styles.subscriptionActive}>Active</Text>
-                )}
-              </View>
-
-              {!subscriptionStatus.isPro ? (
-                <>
-                  <Text style={styles.subscriptionInfo}>
-                    {subscriptionStatus.remainingInvoices} of {subscriptionStatus.invoiceLimit} free invoices remaining this month
-                  </Text>
-                  <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>
-                    <Text style={styles.upgradeButtonText}>Upgrade to Pro - $3.99/month</Text>
-                    <Text style={styles.upgradeSubtext}>Unlimited invoices • Priority support</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <Text style={styles.subscriptionInfo}>
-                  Unlimited invoices • All features unlocked
-                </Text>
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* Business Information Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Business Information</Text>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business Name</Text>
-            <TextInput
-              style={styles.input}
-              value={profile.business_name}
-              onChangeText={(text) => setProfile({ ...profile, business_name: text })}
-              placeholder="Enter your business name"
-              placeholderTextColor={theme.colors.placeholder}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business Address</Text>
-            <TextInput
-              style={[styles.input, styles.multilineInput]}
-              value={profile.business_address}
-              onChangeText={(text) => setProfile({ ...profile, business_address: text })}
-              placeholder="Enter your business address"
-              placeholderTextColor={theme.colors.placeholder}
-              multiline
-              numberOfLines={3}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business Phone</Text>
-            <TextInput
-              style={styles.input}
-              value={profile.business_phone}
-              onChangeText={(text) =>
-                setProfile({ ...profile, business_phone: formatBusinessPhone(text) })
-              }
-              placeholder="Enter your phone number"
-              placeholderTextColor={theme.colors.placeholder}
-              keyboardType="phone-pad"
-            />
-          </View>
-        </View>
-
-        {/* Invoice Branding Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Invoice Branding</Text>
-          <Text style={styles.sectionSubtitle}>
-            Open the dedicated branding area to manage logo, template builder, and template preview.
-          </Text>
-          <TouchableOpacity
-            style={styles.linkRow}
-            onPress={() => navigation.navigate('InvoiceBranding')}
-          >
-            <View style={styles.linkContent}>
-              <Text style={styles.linkEmoji}>🎨</Text>
-              <Text style={styles.linkText}>Open Invoice Branding</Text>
-            </View>
-            <Text style={styles.linkArrow}>›</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Payment Methods Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Payment Methods</Text>
-          <Text style={styles.sectionSubtitle}>
-            Select one or more methods, then add your own links or payment details. These appear on invoice emails.
-          </Text>
-
-          <View style={styles.methodChipWrap}>
-            {PAYMENT_METHOD_OPTIONS.map((option) => {
-              const active = isMethodSelected(option.type);
-              return (
-                <TouchableOpacity
-                  key={option.type}
-                  style={[styles.methodChip, active && styles.methodChipActive]}
-                  onPress={() => togglePaymentMethod(option.type)}
-                >
-                  <Text style={[styles.methodChipText, active && styles.methodChipTextActive]}>
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {paymentMethods.length === 0 && (
-            <Text style={styles.helperText}>No payment methods selected yet.</Text>
-          )}
-
-          {paymentMethods.map((method) => {
-            const option = getMethodOption(method.type);
-            return (
-              <View key={method.type} style={styles.inputGroup}>
-                <Text style={styles.label}>{method.label}</Text>
-                <TextInput
-                  style={styles.input}
-                  value={method.value}
-                  onChangeText={(text) => updatePaymentMethodValue(method.type, text)}
-                  placeholder={option?.placeholder || 'Enter payment link or details'}
-                  placeholderTextColor={theme.colors.placeholder}
-                  autoCapitalize="none"
-                />
-              </View>
-            );
-          })}
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Additional Payment Notes (Optional)</Text>
-            <TextInput
-              style={[styles.input, styles.multilineInput, styles.paymentInput]}
-              value={profile.payment_instructions}
-              onChangeText={(text) => setProfile({ ...profile, payment_instructions: text })}
-              placeholder={'Examples:\n• Include invoice number in memo\n• Payment due within 7 days'}
-              placeholderTextColor={theme.colors.placeholder}
-              multiline
-              numberOfLines={4}
-            />
-            <Text style={styles.helperText}>
-              Use this for extra payment instructions that apply to all methods.
-            </Text>
-          </View>
-        </View>
-
-        {/* Appearance Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Appearance</Text>
-          <Text style={styles.sectionSubtitle}>Choose your preferred color theme</Text>
-          
-          <View style={styles.themeOptions}>
-            <TouchableOpacity
-              style={[
-                styles.themeOption,
-                themeMode === 'light' && styles.themeOptionActive,
-              ]}
-              onPress={() => setThemeMode('light')}
-            >
-              <Text style={styles.themeOptionEmoji}>☀️</Text>
-              <Text style={[
-                styles.themeOptionText,
-                themeMode === 'light' && styles.themeOptionTextActive,
-              ]}>Light</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.themeOption,
-                themeMode === 'dark' && styles.themeOptionActive,
-              ]}
-              onPress={() => setThemeMode('dark')}
-            >
-              <Text style={styles.themeOptionEmoji}>🌙</Text>
-              <Text style={[
-                styles.themeOptionText,
-                themeMode === 'dark' && styles.themeOptionTextActive,
-              ]}>Dark</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.themeOption,
-                themeMode === 'system' && styles.themeOptionActive,
-              ]}
-              onPress={() => setThemeMode('system')}
-            >
-              <Text style={styles.themeOptionEmoji}>⚙️</Text>
-              <Text style={[
-                styles.themeOptionText,
-                themeMode === 'system' && styles.themeOptionTextActive,
-              ]}>Auto</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Feedback & Support Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Feedback & Support</Text>
-          
-          <TouchableOpacity 
-            style={styles.linkRow}
-            onPress={() => navigation.navigate('HelpSupport')}
-          >
-            <View style={styles.linkContent}>
-              <Text style={styles.linkEmoji}>❓</Text>
-              <Text style={styles.linkText}>Help & Support</Text>
-            </View>
-            <Text style={styles.linkArrow}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.linkRow}
-            onPress={() => navigation.navigate('Feedback')}
-          >
-            <View style={styles.linkContent}>
-              <Text style={styles.linkEmoji}>💬</Text>
-              <Text style={styles.linkText}>Send Feedback</Text>
-            </View>
-            <Text style={styles.linkArrow}>›</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* App Info Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>App Information</Text>
-          
-          <TouchableOpacity 
-            style={styles.linkRow}
-            onPress={() => setShowPrivacy(true)}
-          >
-            <Text style={styles.linkText}>Privacy Policy</Text>
-            <Text style={styles.linkArrow}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.linkRow}
-            onPress={() => setShowTerms(true)}
-          >
-            <Text style={styles.linkText}>Terms of Service</Text>
-            <Text style={styles.linkArrow}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.linkRow}
-            onPress={() => setShowAbout(true)}
-          >
-            <Text style={styles.linkText}>About Swift Invoice</Text>
-            <Text style={styles.linkArrow}>›</Text>
-          </TouchableOpacity>
-
-          <View style={styles.versionRow}>
-            <Text style={styles.versionText}>{getAppVersionLabel()}</Text>
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Modals */}
-      <PrivacyPolicyScreen visible={showPrivacy} onClose={() => setShowPrivacy(false)} />
-      <TermsScreen visible={showTerms} onClose={() => setShowTerms(false)} />
-      <AboutScreen visible={showAbout} onClose={() => setShowAbout(false)} />
-
-      {/* Save Button */}
-      <View style={styles.bottomActions}>
-        <TouchableOpacity
-          style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-          onPress={handleSave}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.saveButtonText}>Save Settings</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+  const link = (label: string, onPress: () => void, detail?: string) => (
+    <TouchableOpacity accessibilityRole="button" style={styles.link} onPress={onPress}>
+      <View style={styles.linkBody}><Text style={styles.linkText}>{label}</Text>{detail && <Text style={styles.description}>{detail}</Text>}</View>
+      <AppIcon name="chevron" color={theme.colors.textSecondary} size={20} />
+    </TouchableOpacity>
   );
+
+  if (loading) return <View style={styles.loading}><ActivityIndicator color={theme.colors.primary} accessibilityLabel="Loading settings" /></View>;
+
+  if (profileError) return <View style={[styles.loading, { padding: 24, gap: 16 }]}>
+    <Text style={styles.heading}>Settings couldn’t load</Text>
+    <Text style={styles.description}>Check your connection and try again.</Text>
+    <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={loadProfile}><Text style={styles.secondaryText}>Try again</Text></TouchableOpacity>
+  </View>;
+
+  return <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.top + 44}>
+    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <View style={styles.section}>
+        <Text style={styles.heading}>Business details</Text>
+        <Text style={styles.description}>The details your customers see on your invoices.</Text>
+        <View style={styles.field}><Text style={styles.label}>Business name</Text>
+          <TextInput accessibilityLabel="Business name" style={styles.input} value={profile.business_name} editable={!saving}
+            onChangeText={text => setProfile({ ...profile, business_name: text })} placeholder="Your business name" placeholderTextColor={theme.colors.placeholder} />
+        </View>
+        <View style={styles.field}><Text style={styles.label}>Business address</Text>
+          <TextInput accessibilityLabel="Business address" style={[styles.input, styles.multiline]} value={profile.business_address} editable={!saving}
+            onChangeText={text => setProfile({ ...profile, business_address: text })} placeholder="Street, city, state and ZIP code" placeholderTextColor={theme.colors.placeholder} multiline />
+        </View>
+        <View style={styles.field}><Text style={styles.label}>Business phone</Text>
+          <TextInput accessibilityLabel="Business phone" style={styles.input} value={profile.business_phone} editable={!saving}
+            onChangeText={text => setProfile({ ...profile, business_phone: formatBusinessPhone(text) })} placeholder="(555) 123-4567" placeholderTextColor={theme.colors.placeholder} keyboardType="phone-pad" />
+        </View>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.heading}>Getting paid</Text>
+        <Text style={styles.description}>Choose how customers can pay, then enter your payment link or instructions. Saved links are clickable in invoice PDFs and emails.</Text>
+        <View style={styles.options}>
+          {PAYMENT_METHOD_OPTIONS.map(option => {
+            const active = isMethodSelected(option.type);
+            return <TouchableOpacity key={option.type} accessibilityRole="checkbox" accessibilityState={{ checked: active, disabled: saving }} disabled={saving}
+              style={[styles.option, active && styles.optionActive]} onPress={() => togglePaymentMethod(option.type)}>
+              <Text style={[styles.optionText, active && styles.optionTextActive]}>{option.label}</Text>
+            </TouchableOpacity>;
+          })}
+        </View>
+        {paymentMethods.map(method => <View key={method.type} style={styles.field}>
+          <Text style={styles.label}>{method.label} details</Text>
+          <TextInput accessibilityLabel={`${method.label} details`} style={styles.input} value={method.value} editable={!saving}
+            onChangeText={text => updatePaymentMethodValue(method.type, text)} placeholder={getMethodOption(method.type)?.placeholder}
+            placeholderTextColor={theme.colors.placeholder} autoCapitalize="none" autoCorrect={false} />
+        </View>)}
+        <View style={styles.field}><Text style={styles.label}>Payment notes (optional)</Text>
+          <TextInput accessibilityLabel="Payment notes" style={[styles.input, styles.multiline]} value={profile.payment_instructions} editable={!saving}
+            onChangeText={text => setProfile({ ...profile, payment_instructions: text })} placeholder="Please include the invoice number with your payment."
+            placeholderTextColor={theme.colors.placeholder} multiline />
+        </View>
+        <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: saving, busy: saving }} disabled={saving}
+          style={[styles.save, saving && styles.disabled]} onPress={handleSave}>
+          {saving ? <ActivityIndicator color="#fff" accessibilityLabel="Saving business details" /> : <Text style={styles.saveText}>Save business details</Text>}
+        </TouchableOpacity>
+        <Text style={styles.description}>Saves your business details and payment instructions.</Text>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.heading}>Appearance</Text>
+        {link('Invoice design', () => navigation.navigate('InvoiceBranding'), 'Your logo, colors and invoice layout')}
+        <Text style={styles.label}>App theme</Text>
+        <View style={styles.options}>
+          {(['light', 'dark', 'system'] as const).map(mode => <TouchableOpacity key={mode} accessibilityRole="radio" accessibilityState={{ checked: themeMode === mode }}
+            style={[styles.option, themeMode === mode && styles.optionActive]} onPress={() => setThemeMode(mode)}>
+            <Text style={[styles.optionText, themeMode === mode && styles.optionTextActive]}>{mode === 'system' ? 'Use device setting' : mode === 'light' ? 'Light' : 'Dark'}</Text>
+          </TouchableOpacity>)}
+        </View>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.heading}>Your plan</Text>
+        {Platform.OS === 'android' && link('Manage subscription in Google Play', handleManageSubscription)}
+        {Platform.OS === 'android' && <TouchableOpacity accessibilityRole="button" disabled={restoring || upgrading} style={styles.link} onPress={handleRestore}>
+          <Text style={styles.linkText}>{restoring ? 'Checking Google Play…' : 'Restore purchases'}</Text>
+        </TouchableOpacity>}
+        {subscriptionStatus ? <>
+          <Text style={styles.linkText}>{subscriptionStatus.isPro ? 'Swift Invoice Pro' : 'Free plan'}</Text>
+          <Text style={styles.description}>{subscriptionStatus.isPro ? 'Unlimited invoices' : `${subscriptionStatus.remainingInvoices} of ${subscriptionStatus.invoiceLimit} free invoices remaining this month`}</Text>
+          {subscriptionStatus.isPro && subscriptionStatus.status === 'cancelled' && subscriptionStatus.expiresAt && <Text style={styles.description}>Canceled. Pro access ends {new Date(subscriptionStatus.expiresAt).toLocaleString()}. You will not be charged again unless you resubscribe.</Text>}
+          {!subscriptionStatus.isPro && <>
+            <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: upgrading, busy: upgrading }} disabled={upgrading} style={styles.secondary} onPress={handleUpgrade}>
+              {upgrading ? <ActivityIndicator color={theme.colors.primary} /> : <Text style={styles.secondaryText}>Upgrade to Pro</Text>}
+            </TouchableOpacity>
+            <Text style={styles.description}>The store shows the price and billing terms before you confirm.</Text>
+          </>}
+        </> : <>
+          <Text style={styles.description}>Plan details are unavailable.</Text>
+          {link('Reload plan details', loadSubscription)}
+        </>}
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.heading}>Help & information</Text>
+        {link('Help & support', () => navigation.navigate('HelpSupport'))}
+        {link('Request account deletion', () => { Linking.openURL('https://platinummorgan.github.io/invoice_automator/delete-account.html').catch(() => Alert.alert('Request account deletion', 'Email support@platovalabs.com from your Swift Invoice account email with the subject Swift Invoice account deletion. Deleting your account does not cancel Google Play billing.')); })}
+        {link('Send feedback', () => navigation.navigate('Feedback'))}
+        {link('Privacy policy', () => setShowPrivacy(true))}
+        {link('Terms of service', () => setShowTerms(true))}
+        {link('About Swift Invoice', () => setShowAbout(true))}
+        <Text style={styles.description}>{getAppVersionLabel()}</Text>
+      </View>
+      <TouchableOpacity accessibilityRole="button" style={styles.signOut} onPress={handleLogout}><Text style={styles.signOutText}>Sign out</Text></TouchableOpacity>
+    </ScrollView>
+    <PrivacyPolicyScreen visible={showPrivacy} onClose={() => setShowPrivacy(false)} />
+    <TermsScreen visible={showTerms} onClose={() => setShowTerms(false)} />
+    <AboutScreen visible={showAbout} onClose={() => setShowAbout(false)} />
+  </KeyboardAvoidingView>;
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 36,
-  },
-  pageIntroCard: {
-    backgroundColor: theme.colors.cardStrong,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 20,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-    marginBottom: 14,
-  },
-  pageIntroKicker: {
-    color: theme.colors.accent,
-    fontSize: 11,
-    letterSpacing: 1.4,
-    marginBottom: 7,
-    fontFamily: theme.fonts.body,
-  },
-  pageIntroTitle: {
-    fontSize: 30,
-    color: theme.colors.text,
-    marginBottom: 7,
-    fontFamily: theme.fonts.headline,
-  },
-  pageIntroSubtitle: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    lineHeight: 20,
-    fontFamily: theme.fonts.body,
-  },
-  section: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: 16,
-    marginBottom: 14,
-    elevation: 1,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 7,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    color: theme.colors.text,
-    marginBottom: 11,
-    fontFamily: theme.fonts.headline,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    marginBottom: 12,
-    lineHeight: 18,
-    fontFamily: theme.fonts.body,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 13,
-    color: theme.colors.text,
-    marginBottom: 6,
-    fontFamily: theme.fonts.body,
-  },
-  input: {
-    backgroundColor: theme.colors.inputBackground,
-    borderWidth: 1,
-    borderColor: theme.colors.inputBorder,
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 15,
-    color: theme.colors.text,
-    fontFamily: theme.fonts.body,
-  },
-  multilineInput: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-    paddingTop: 12,
-  },
-  paymentInput: {
-    minHeight: 120,
-    fontFamily: theme.fonts.mono,
-  },
-  methodChipWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 10,
-  },
-  methodChip: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.cardStrong,
-    borderRadius: 999,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-  },
-  methodChipActive: {
-    borderColor: theme.colors.accent,
-    backgroundColor: theme.colors.accentSoft,
-  },
-  methodChipText: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    fontFamily: theme.fonts.body,
-  },
-  methodChipTextActive: {
-    color: theme.colors.accent,
-    fontFamily: theme.fonts.body,
-  },
-  helperText: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    marginTop: 8,
-    lineHeight: 16,
-    fontFamily: theme.fonts.body,
-  },
-  logoCard: {
-    backgroundColor: theme.colors.background,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-  },
-  logoPreview: {
-    width: '100%',
-    maxWidth: 240,
-    height: 100,
-  },
-  logoPlaceholder: {
-    backgroundColor: theme.colors.background,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 12,
-    borderStyle: 'dashed',
-    padding: 20,
-    alignItems: 'center',
-  },
-  logoPlaceholderText: {
-    color: theme.colors.textSecondary,
-    fontSize: 14,
-    fontFamily: theme.fonts.body,
-  },
-  logoActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
-  },
-  logoButton: {
-    flex: 1,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  logoUploadButton: {
-    backgroundColor: theme.colors.primary,
-  },
-  logoButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontFamily: theme.fonts.body,
-  },
-  logoRemoveButton: {
-    backgroundColor: theme.colors.card,
-    borderWidth: 1,
-    borderColor: theme.colors.error,
-  },
-  logoRemoveButtonText: {
-    color: theme.colors.error,
-    fontSize: 14,
-    fontFamily: theme.fonts.body,
-  },
-  templateGrid: {
-    gap: 10,
-  },
-  templateCard: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 10,
-    padding: 12,
-    backgroundColor: theme.colors.background,
-  },
-  templateCardActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primary + '12',
-  },
-  templateTitle: {
-    fontSize: 15,
-    color: theme.colors.text,
-    marginBottom: 4,
-    fontFamily: theme.fonts.headline,
-  },
-  templateTitleActive: {
-    color: theme.colors.primary,
-  },
-  templateSubtitle: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    fontFamily: theme.fonts.body,
-  },
-  accentColorRow: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'center',
-  },
-  accentColorInput: {
-    flex: 1,
-    marginBottom: 0,
-    textTransform: 'uppercase',
-  },
-  applyAccentButton: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  applyAccentButtonText: {
-    color: '#fff',
-    fontFamily: theme.fonts.body,
-  },
-  colorPresetRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 10,
-  },
-  colorPreset: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  colorPresetActive: {
-    borderColor: theme.colors.text,
-    borderWidth: 2,
-  },
-  layoutRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  layoutButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: theme.colors.background,
-  },
-  layoutButtonActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primary + '12',
-  },
-  layoutButtonText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    fontFamily: theme.fonts.body,
-  },
-  layoutButtonTextActive: {
-    color: theme.colors.primary,
-    fontFamily: theme.fonts.body,
-  },
-  templateToggleCard: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 10,
-    backgroundColor: theme.colors.background,
-    paddingHorizontal: 12,
-  },
-  templateToggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  templateToggleText: {
-    color: theme.colors.text,
-    fontSize: 14,
-    flex: 1,
-    paddingRight: 8,
-    fontFamily: theme.fonts.body,
-  },
-  applyTemplateButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  applyTemplateButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontFamily: theme.fonts.body,
-  },
-  bottomActions: {
-    padding: 16,
-    paddingBottom: 48,
-    backgroundColor: theme.colors.background,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  saveButton: {
-    backgroundColor: theme.colors.primary,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  saveButtonDisabled: {
-    opacity: 0.5,
-  },
-  saveButtonText: {
-    color: '#FBF7EF',
-    fontSize: 15,
-    fontFamily: theme.fonts.body,
-  },
-  logoutButton: {
-    backgroundColor: theme.colors.card,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.error,
-  },
-  logoutButtonText: {
-    color: theme.colors.error,
-    fontSize: 15,
-    fontFamily: theme.fonts.body,
-  },
-  linkRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 13,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 12,
-    backgroundColor: theme.colors.cardStrong,
-    marginBottom: 10,
-  },
-  linkText: {
-    fontSize: 15,
-    color: theme.colors.text,
-    fontFamily: theme.fonts.body,
-  },
-  linkArrow: {
-    fontSize: 20,
-    color: theme.colors.textSecondary,
-    fontFamily: theme.fonts.body,
-  },
-  versionRow: {
-    marginTop: 10,
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  versionText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    fontFamily: theme.fonts.body,
-  },
-  subscriptionCard: {
-    backgroundColor: theme.colors.cardStrong,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  subscriptionCardPro: {
-    backgroundColor: theme.colors.primaryLight,
-    borderColor: theme.colors.primary,
-  },
-  subscriptionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  subscriptionTier: {
-    fontSize: 20,
-    color: theme.colors.text,
-    fontFamily: theme.fonts.headline,
-  },
-  subscriptionActive: {
-    fontSize: 12,
-    color: theme.colors.success,
-    backgroundColor: theme.colors.card,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    fontFamily: theme.fonts.body,
-  },
-  subscriptionInfo: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 12,
-    fontFamily: theme.fonts.body,
-  },
-  upgradeButton: {
-    backgroundColor: theme.colors.accent,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  upgradeButtonText: {
-    color: '#FBF7EF',
-    fontSize: 15,
-    fontFamily: theme.fonts.body,
-  },
-  upgradeSubtext: {
-    color: '#FBF7EF',
-    fontSize: 12,
-    marginTop: 4,
-    opacity: 0.9,
-    fontFamily: theme.fonts.body,
-  },
-  themeOptions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
-  },
-  themeOption: {
-    flex: 1,
-    backgroundColor: theme.colors.cardStrong,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 12,
-    padding: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 92,
-  },
-  themeOptionActive: {
-    borderColor: theme.colors.accent,
-    backgroundColor: theme.colors.accentSoft,
-  },
-  themeOptionEmoji: {
-    fontSize: 28,
-    marginBottom: 6,
-  },
-  themeOptionText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    fontFamily: theme.fonts.body,
-  },
-  themeOptionTextActive: {
-    color: theme.colors.accent,
-    fontFamily: theme.fonts.body,
-  },
-  linkContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  linkEmoji: {
-    fontSize: 18,
-    marginRight: 8,
-  },
+const createStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background },
+  content: { paddingHorizontal: 24, paddingBottom: 36 },
+  section: { paddingVertical: 24, borderBottomWidth: 1, borderBottomColor: theme.colors.border, gap: 12 },
+  heading: { fontFamily: theme.fonts.body, fontSize: 21, fontWeight: '600', color: theme.colors.text },
+  description: { fontFamily: theme.fonts.body, fontSize: 14, lineHeight: 21, color: theme.colors.textSecondary },
+  field: { gap: 8, marginTop: 6 },
+  label: { fontFamily: theme.fonts.body, fontSize: 14, fontWeight: '600', color: theme.colors.text },
+  input: { fontFamily: theme.fonts.body, fontSize: 16, color: theme.colors.text, backgroundColor: theme.colors.inputBackground, borderWidth: 1, borderColor: theme.colors.inputBorder, borderRadius: 6, padding: 12, minHeight: 48 },
+  multiline: { minHeight: 92, textAlignVertical: 'top' },
+  options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 4 },
+  option: { minHeight: 44, justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 10 },
+  optionActive: { backgroundColor: theme.colors.primaryLight, borderColor: theme.colors.primary },
+  optionText: { fontFamily: theme.fonts.body, fontSize: 14, color: theme.colors.textSecondary },
+  optionTextActive: { color: theme.colors.primary, fontWeight: '600' },
+  save: { minHeight: 50, alignItems: 'center', justifyContent: 'center', padding: 12, marginTop: 8, borderRadius: 6, backgroundColor: '#1B6C53' },
+  saveText: { fontFamily: theme.fonts.body, fontSize: 16, fontWeight: '600', color: '#fff' },
+  disabled: { opacity: 0.6 },
+  secondary: { minHeight: 48, borderWidth: 1, borderColor: theme.colors.primary, borderRadius: 6, alignItems: 'center', justifyContent: 'center', padding: 12 },
+  secondaryText: { fontFamily: theme.fonts.body, fontSize: 16, fontWeight: '600', color: theme.colors.primary },
+  link: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, minHeight: 48, paddingVertical: 8 },
+  linkBody: { flex: 1, gap: 5 },
+  linkText: { fontFamily: theme.fonts.body, fontSize: 16, color: theme.colors.text },
+  signOut: { minHeight: 48, paddingVertical: 20, alignItems: 'flex-start' },
+  signOutText: { fontFamily: theme.fonts.body, fontSize: 16, color: theme.colors.error },
 });

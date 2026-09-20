@@ -1,27 +1,32 @@
+import UpdatePasswordScreen from './src/screens/UpdatePasswordScreen';
+import { parseRecoveryLink } from './src/utils/recoveryLink';
 import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Linking } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
 import { authService } from './src/services/auth';
 import { subscriptionService } from './src/services/subscription';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 
-function AppContent({ isAuthenticated, onLoginSuccess }: { isAuthenticated: boolean; onLoginSuccess: () => void }) {
+function AppContent({ isAuthenticated, onLoginSuccess, recoveryLink, onRecoveryDone }: { isAuthenticated: boolean; onLoginSuccess: () => void; recoveryLink: string | null; onRecoveryDone: () => void }) {
   const { isDark } = useTheme();
   
   return (
     <SafeAreaProvider>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <AppNavigator
+      {recoveryLink ? <UpdatePasswordScreen key={recoveryLink} link={recoveryLink} onDone={onRecoveryDone} /> : <AppNavigator
         isAuthenticated={isAuthenticated}
         onLoginSuccess={onLoginSuccess}
-      />
+      />}
     </SafeAreaProvider>
   );
 }
 
 export default function App() {
+  const [recoveryLink, setRecoveryLink] = useState<string | null>(null);
+  const recovering = useRef(false);
+  const handledLinks = useRef(new Set<string>());
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const restoredPurchaseUserIdsRef = useRef<Set<string>>(new Set());
@@ -31,15 +36,27 @@ export default function App() {
       console.warn('Error initializing IAP services:', error);
     });
 
-    checkAuth();
+    const handleLink = (url: string | null) => {
+      if (!url || !parseRecoveryLink(url) || handledLinks.current.has(url)) return;
+      handledLinks.current.add(url);
+      recovering.current = true;
+      setRecoveryLink(url);
+    };
+    const linkListener = Linking.addEventListener('url', ({ url }) => handleLink(url));
+    Linking.getInitialURL().then(handleLink).catch(() => {}).finally(checkAuth);
 
     const { data: authListener } = authService.onAuthStateChange(
       (event, session) => {
+        if (event === 'PASSWORD_RECOVERY' && !recovering.current) {
+          recovering.current = true;
+          setRecoveryLink('recovery-event');
+        }
         setIsAuthenticated(!!session);
         if (!session) {
           restoredPurchaseUserIdsRef.current.clear();
           return;
         }
+        if (recovering.current) return;
         restorePurchasesForSession(session).catch((error) => {
           console.warn('Error restoring purchases after auth change:', error);
         });
@@ -47,6 +64,7 @@ export default function App() {
     );
 
     return () => {
+      linkListener.remove();
       authListener?.subscription?.unsubscribe();
       subscriptionService.cleanup().catch((error) => {
         console.warn('Error cleaning up IAP services:', error);
@@ -70,7 +88,7 @@ export default function App() {
 
   const restorePurchasesForSession = async (session: any) => {
     const userId = session?.user?.id;
-    if (!userId || !subscriptionService.isIapAvailable()) return;
+    if (recovering.current || !userId || !subscriptionService.isIapAvailable()) return;
 
     if (restoredPurchaseUserIdsRef.current.has(userId)) return;
     restoredPurchaseUserIdsRef.current.add(userId);
@@ -90,7 +108,7 @@ export default function App() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#1B6C53" />
       </View>
     );
   }
@@ -99,6 +117,8 @@ export default function App() {
     <ThemeProvider>
       <AppContent
         isAuthenticated={isAuthenticated}
+        recoveryLink={recoveryLink}
+        onRecoveryDone={() => { recovering.current = false; setRecoveryLink(null); }}
         onLoginSuccess={handleLoginSuccess}
       />
     </ThemeProvider>
@@ -110,6 +130,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#F4EFE5',
   },
 });
