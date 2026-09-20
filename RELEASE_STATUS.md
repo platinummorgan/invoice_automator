@@ -7,13 +7,21 @@ Verified September 20, 2026. This document is the authoritative summary; older r
 | Surface | Status |
 | --- | --- |
 | Google Play production | 1.2.1, version code 15, completed rollout (API verified) |
-| Android candidate | 1.2.2; final rebuild pending after payment-link improvements |
+| Android candidate | 1.2.2 (19), EAS build in progress after payment-link improvements |
 | Previous candidate build 18 | Finished, superseded; not the final artifact |
-| GitHub release | 1.2.2 draft being prepared; not marked published |
+| GitHub release | 1.2.2 draft created; not marked published |
 | Play Data safety | Owner reports submitted for review; approval not verified |
 | Supabase | All four tracked migrations applied; billing function source matches deployment |
 
 No Play production draft was present when checked. The earlier build-18 upload was rolled back after a commit-parameter error.
+
+## Candidate provenance
+
+- Source commit: d47a3d8d6996e0881c91f52b193f1385f1023d49.
+- Merged into main by [PR #2](https://github.com/platinummorgan/invoice_automator/pull/2), merge commit 22e43bb3b7862cd88431a046e857ed2d8ff87910; identical source tree at merge.
+- [EAS build 19](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/cb6900f0-0d62-46af-978d-d3891648495b).
+- [GitHub releases](https://github.com/platinummorgan/invoice_automator/releases): v1.2.2 is a draft, visible to repository maintainers.
+- GitHub PR CI and credential scanning passed. Local working tree contains no credentials or build artifacts tracked by Git.
 
 ## Changes in 1.2.2
 
