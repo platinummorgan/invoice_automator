@@ -1,3 +1,5 @@
+import { parseDisplayDate, calendarDate } from '../utils/invoiceValues';
+import { paymentMethodUrl } from '../utils/paymentMethods';
 import { resolveTemplateSettings } from './templateSettings';
 import * as MailComposer from 'expo-mail-composer';
 import * as Linking from 'expo-linking';
@@ -171,9 +173,10 @@ async function openDeviceEmailComposer({
   }
 
   try {
-    await Share.share({
+    const result = await Share.share({
       message: `${subject}\n\n${plainText}`,
     });
+    if (result.action === Share.dismissedAction) return { success: false, status: 'cancelled' };
     return { success: true, status: 'undetermined' };
   } catch (error: any) {
     return { success: false, status: 'unavailable', error: error?.message || 'No email app available.' };
@@ -287,7 +290,7 @@ export async function sendReceiptEmail({
 /**
  * Generate HTML email template for invoice
  */
-function generateInvoiceEmailHTML({
+export function generateInvoiceEmailHTML({
   invoice,
   items,
   customer,
@@ -323,7 +326,7 @@ function generateInvoiceEmailHTML({
           return {
             label,
             value: escapeHtml(rawValue),
-            link: safeHttpUrl(rawValue),
+            link: safeHttpUrl(paymentMethodUrl(rawValue)),
           };
         })
         .filter((method): method is { label: string; value: string; link: string } => !!method)
@@ -339,7 +342,7 @@ function generateInvoiceEmailHTML({
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return parseDisplayDate(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -480,7 +483,7 @@ function generateInvoiceEmailHTML({
                   <span style="font-weight: 600; color: #1f2937;">${method.label}:</span>
                   ${
                     method.link
-                      ? `<a href="${method.link}" style="color: ${colors.accent}; text-decoration: none;"> ${method.value}</a>`
+                      ? `<a href="${method.link}" style="color: ${colors.accent}; text-decoration: underline; font-weight: 600;">Pay with ${method.label}</a><br /><span style="font-size: 12px; overflow-wrap: anywhere;">${method.link}</span>`
                       : ` ${method.value}`
                   }
                 </p>
@@ -556,7 +559,7 @@ function generateReceiptEmailHTML({
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return parseDisplayDate(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',

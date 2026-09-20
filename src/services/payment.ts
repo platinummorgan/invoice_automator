@@ -14,18 +14,10 @@ export const paymentService = {
     return data;
   },
 
-  async recordManualPayment(invoiceId: string, amount: number, paidAt?: string) {
-    const { data, error } = await supabase
-      .from('payment_records')
-      .insert({
-        invoice_id: invoiceId,
-        amount,
-        currency: 'usd',
-        status: 'succeeded',
-        paid_at: paidAt || new Date().toISOString(),
-      })
-      .select()
-      .single();
+  async recordManualPayment(invoiceId: string) {
+    const { data, error } = await supabase.rpc('record_manual_payment', {
+      p_invoice_id: invoiceId,
+    });
 
     if (error) throw error;
     return data;

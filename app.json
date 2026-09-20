@@ -2,7 +2,8 @@
   "expo": {
     "name": "Swift Invoice",
     "slug": "invoice-automator",
-    "version": "1.2.0",
+    "scheme": "com.invoiceautomator.app",
+    "version": "1.2.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -10,24 +11,31 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#007AFF"
+      "backgroundColor": "#F4EFE5"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.invoiceautomator.app",
+      "buildNumber": "16",
       "scheme": "com.invoiceautomator.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#007AFF"
+        "backgroundColor": "#1B6C53"
       },
       "package": "com.invoiceautomator.app",
-      "versionCode": 15,
       "permissions": [
         "READ_CONTACTS",
         "NOTIFICATIONS",
         "com.android.vending.BILLING"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.WRITE_CONTACTS",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -76,6 +84,7 @@
       ]
     ],
     "extra": {
+      "googleWebClientId": "884636010114-k636nc5f4397hve5vmfj765m9o9rsbgj.apps.googleusercontent.com",
       "eas": {
         "projectId": "aa2671dc-1b44-44d2-a195-a054122ea0d1"
       }

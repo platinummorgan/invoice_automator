@@ -1,0 +1,2 @@
+-- Deployed: ../migrations/202609200001_schedule_google_reconciliation.sql
+-- Schedule is active; do not recreate the Vault credential.

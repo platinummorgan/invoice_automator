@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -37,7 +38,9 @@ const INVOICE_TEMPLATE_OPTIONS: Array<{ value: InvoiceTemplate; title: string; s
 
 export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScreenProps) {
   const { theme } = useTheme();
-  const styles = createStyles(theme);
+  const insets = useSafeAreaInsets();
+  const [loadError, setLoadError] = useState(false);
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -58,6 +61,8 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
   }, []);
 
   const loadProfile = async () => {
+    setLoading(true);
+    setLoadError(false);
     try {
       const {
         data: { user },
@@ -86,7 +91,7 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
         template_settings: resolved,
       });
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Could not load branding settings.');
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -116,6 +121,11 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
         Alert.alert('Logo Too Large', 'Please choose an image smaller than 2 MB.');
         return;
       }
+      const contentType = asset.mimeType || 'image/jpeg';
+      if (!contentType.startsWith('image/')) {
+        Alert.alert('Invalid File', 'Please select an image file (JPEG, PNG, or WebP).');
+        return;
+      }
 
       setUploadingLogo(true);
       const {
@@ -125,7 +135,6 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
 
       const fileResponse = await fetch(asset.uri);
       const arrayBuffer = await fileResponse.arrayBuffer();
-      const contentType = asset.mimeType || 'image/jpeg';
 
       const { error: uploadError } = await supabase.storage
         .from(LOGO_BUCKET)
@@ -280,20 +289,26 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
     );
   }
 
+  if (loadError) return <View style={[styles.loadingContainer, { padding: 24, gap: 16 }]}>
+    <Text style={styles.sectionTitle}>Invoice design could not load</Text>
+    <TouchableOpacity accessibilityRole="button" style={styles.previewButton} onPress={loadProfile}><Text style={styles.previewButtonText}>Try again</Text></TouchableOpacity>
+  </View>;
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={insets.top + 44}
     >
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView keyboardShouldPersistTaps="handled" style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Invoice Branding</Text>
+          <Text style={styles.sectionTitle}>Make it yours</Text>
           <Text style={styles.sectionSubtitle}>
-            Configure logo and template settings in one place.
+            Choose how your invoices look. Preview your changes before saving the design.
           </Text>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business Logo</Text>
+            <Text style={styles.label}>Business logo</Text>
             {profile.logo_url ? (
               <View style={styles.logoCard}>
                 <Image source={{ uri: profile.logo_url }} style={styles.logoPreview} resizeMode="contain" />
@@ -305,33 +320,36 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
             )}
 
             <View style={styles.logoActions}>
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 style={[styles.logoButton, styles.logoUploadButton, uploadingLogo && styles.buttonDisabled]}
                 onPress={handleUploadLogo}
-                disabled={uploadingLogo}
+                disabled={uploadingLogo || saving}
               >
                 {uploadingLogo ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.logoButtonText}>
-                    {profile.logo_url ? 'Replace Logo' : 'Upload Logo'}
+                    {profile.logo_url ? 'Replace logo' : 'Upload logo'}
                   </Text>
                 )}
               </TouchableOpacity>
               {!!profile.logo_url && (
-                <TouchableOpacity style={[styles.logoButton, styles.logoRemoveButton]} onPress={handleRemoveLogo}>
+                <TouchableOpacity accessibilityRole="button" style={[styles.logoButton, styles.logoRemoveButton]} disabled={uploadingLogo || saving}
+                  onPress={handleRemoveLogo}>
                   <Text style={styles.logoRemoveButtonText}>Remove</Text>
                 </TouchableOpacity>
               )}
             </View>
           </View>
 
+          <Text style={styles.sectionSubtitle}>Logo uploads and removals are saved immediately. Use an image under 2 MB.</Text>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Invoice Template</Text>
+            <Text style={styles.label}>Invoice layout</Text>
             <View style={styles.templateGrid}>
               {INVOICE_TEMPLATE_OPTIONS.map((option) => (
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   key={option.value}
+                  accessibilityState={{ selected: profile.invoice_template === option.value }}
                   style={[
                     styles.templateCard,
                     profile.invoice_template === option.value && styles.templateCardActive,
@@ -353,24 +371,27 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Accent Color (HEX)</Text>
+            <Text style={styles.label}>Accent color</Text>
             <View style={styles.accentColorRow}>
               <TextInput
                 style={[styles.input, styles.accentColorInput]}
+                accessibilityLabel="Accent color hex code"
                 value={accentColorInput}
                 onChangeText={setAccentColorInput}
                 placeholder="#3B82F6"
                 placeholderTextColor={theme.colors.placeholder}
                 autoCapitalize="characters"
               />
-              <TouchableOpacity style={styles.applyAccentButton} onPress={handleApplyAccentColor}>
+              <TouchableOpacity accessibilityRole="button" style={styles.applyAccentButton} onPress={handleApplyAccentColor}>
                 <Text style={styles.applyAccentButtonText}>Apply</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.colorPresetRow}>
               {INVOICE_TEMPLATE_OPTIONS.map((option) => (
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   key={`color-${option.value}`}
+                  accessibilityLabel={`${option.title} accent color`}
+                  accessibilityState={{ selected: normalizeHexColor(templateSettings.accent_color) === normalizeHexColor(TEMPLATE_PRESET_COLORS[option.value]) }}
                   style={[
                     styles.colorPreset,
                     { backgroundColor: TEMPLATE_PRESET_COLORS[option.value] },
@@ -389,9 +410,9 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Header Layout</Text>
+            <Text style={styles.label}>Business details layout</Text>
             <View style={styles.layoutRow}>
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 style={[
                   styles.layoutButton,
                   templateSettings.header_layout === 'stacked' && styles.layoutButtonActive,
@@ -404,10 +425,10 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
                     templateSettings.header_layout === 'stacked' && styles.layoutButtonTextActive,
                   ]}
                 >
-                  Stacked
+                  Above address
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 style={[
                   styles.layoutButton,
                   templateSettings.header_layout === 'inline' && styles.layoutButtonActive,
@@ -420,18 +441,19 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
                     templateSettings.header_layout === 'inline' && styles.layoutButtonTextActive,
                   ]}
                 >
-                  Inline
+                  Beside address
                 </Text>
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Template Options</Text>
+            <Text style={styles.label}>Include on invoices</Text>
             <View style={styles.templateToggleCard}>
               <View style={styles.templateToggleRow}>
                 <Text style={styles.templateToggleText}>Show logo in invoices</Text>
                 <Switch
+                  accessibilityLabel="Show logo in invoices"
                   value={templateSettings.show_logo}
                   onValueChange={(value) => handleTemplateToggle('show_logo', value)}
                   thumbColor="#fff"
@@ -441,6 +463,7 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
               <View style={styles.templateToggleRow}>
                 <Text style={styles.templateToggleText}>Show business contact</Text>
                 <Switch
+                  accessibilityLabel="Show business contact"
                   value={templateSettings.show_business_contact}
                   onValueChange={(value) => handleTemplateToggle('show_business_contact', value)}
                   thumbColor="#fff"
@@ -450,6 +473,7 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
               <View style={styles.templateToggleRow}>
                 <Text style={styles.templateToggleText}>Show notes section</Text>
                 <Switch
+                  accessibilityLabel="Show notes section"
                   value={templateSettings.show_notes}
                   onValueChange={(value) => handleTemplateToggle('show_notes', value)}
                   thumbColor="#fff"
@@ -459,6 +483,7 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
               <View style={styles.templateToggleRow}>
                 <Text style={styles.templateToggleText}>Highlight total amount</Text>
                 <Switch
+                  accessibilityLabel="Highlight total amount"
                   value={templateSettings.highlight_totals}
                   onValueChange={(value) => handleTemplateToggle('highlight_totals', value)}
                   thumbColor="#fff"
@@ -469,9 +494,10 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Template Footer Text</Text>
+            <Text style={styles.label}>Footer note</Text>
             <TextInput
               style={[styles.input, styles.multilineInput]}
+              accessibilityLabel="Footer note"
               value={templateSettings.footer_text}
               onChangeText={handleFooterTextChange}
               placeholder="Thank you for your business!"
@@ -483,16 +509,16 @@ export default function InvoiceBrandingScreen({ navigation }: InvoiceBrandingScr
         </View>
       </ScrollView>
 
-      <View style={styles.bottomActions}>
-        <TouchableOpacity style={styles.previewButton} onPress={handleOpenPreview}>
-          <Text style={styles.previewButtonText}>Preview Template</Text>
+      <View style={[styles.bottomActions, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <TouchableOpacity accessibilityRole="button" style={styles.previewButton} onPress={handleOpenPreview}>
+          <Text style={styles.previewButtonText}>Preview invoice</Text>
         </TouchableOpacity>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[styles.saveButton, saving && styles.buttonDisabled]}
           onPress={handleSaveBranding}
-          disabled={saving}
+          disabled={saving || uploadingLogo}
         >
-          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Save Branding</Text>}
+          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Save design</Text>}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -515,36 +541,31 @@ const createStyles = (theme: any) =>
       flex: 1,
     },
     scrollContent: {
-      padding: 16,
+      padding: 24,
       paddingBottom: 32,
     },
-    section: {
-      backgroundColor: theme.colors.card,
-      borderRadius: 12,
-      padding: 16,
-      elevation: 2,
-      shadowColor: theme.colors.shadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      marginBottom: 16,
-    },
+    section: { marginBottom: 16 },
     sectionTitle: {
+      fontFamily: theme.fonts.body,
       fontSize: 18,
       fontWeight: '600',
       color: theme.colors.text,
       marginBottom: 8,
     },
     sectionSubtitle: {
+      fontFamily: theme.fonts.body,
       fontSize: 14,
       color: theme.colors.textSecondary,
       marginBottom: 16,
       lineHeight: 20,
     },
     inputGroup: {
-      marginBottom: 16,
+      paddingVertical: 20,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
     },
     label: {
+      fontFamily: theme.fonts.body,
       fontSize: 14,
       fontWeight: '500',
       color: theme.colors.text,
@@ -554,8 +575,9 @@ const createStyles = (theme: any) =>
       backgroundColor: theme.colors.inputBackground,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: 8,
+      borderRadius: 6,
       padding: 12,
+      fontFamily: theme.fonts.body,
       fontSize: 16,
       color: theme.colors.text,
     },
@@ -567,7 +589,7 @@ const createStyles = (theme: any) =>
     logoCard: {
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: 10,
+      borderRadius: 6,
       backgroundColor: theme.colors.inputBackground,
       padding: 12,
       alignItems: 'center',
@@ -583,7 +605,7 @@ const createStyles = (theme: any) =>
       borderWidth: 1,
       borderStyle: 'dashed',
       borderColor: theme.colors.border,
-      borderRadius: 10,
+      borderRadius: 6,
       backgroundColor: theme.colors.background,
       minHeight: 100,
       alignItems: 'center',
@@ -592,6 +614,7 @@ const createStyles = (theme: any) =>
     },
     logoPlaceholderText: {
       color: theme.colors.textSecondary,
+      fontFamily: theme.fonts.body,
       fontSize: 13,
     },
     logoActions: {
@@ -599,17 +622,18 @@ const createStyles = (theme: any) =>
       gap: 10,
     },
     logoButton: {
-      borderRadius: 8,
+      borderRadius: 6,
       paddingVertical: 12,
       alignItems: 'center',
       justifyContent: 'center',
       flex: 1,
     },
     logoUploadButton: {
-      backgroundColor: theme.colors.primary,
+      backgroundColor: '#1B6C53',
     },
     logoButtonText: {
       color: '#fff',
+      fontFamily: theme.fonts.body,
       fontSize: 14,
       fontWeight: '600',
     },
@@ -621,6 +645,7 @@ const createStyles = (theme: any) =>
     },
     logoRemoveButtonText: {
       color: theme.colors.error,
+      fontFamily: theme.fonts.body,
       fontSize: 14,
       fontWeight: '600',
     },
@@ -630,7 +655,7 @@ const createStyles = (theme: any) =>
     templateCard: {
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: 10,
+      borderRadius: 6,
       padding: 12,
       backgroundColor: theme.colors.inputBackground,
     },
@@ -639,6 +664,7 @@ const createStyles = (theme: any) =>
       backgroundColor: theme.colors.primaryLight,
     },
     templateTitle: {
+      fontFamily: theme.fonts.body,
       fontSize: 15,
       fontWeight: '600',
       color: theme.colors.text,
@@ -648,6 +674,7 @@ const createStyles = (theme: any) =>
       color: theme.colors.primary,
     },
     templateSubtitle: {
+      fontFamily: theme.fonts.body,
       fontSize: 13,
       color: theme.colors.textSecondary,
     },
@@ -661,13 +688,14 @@ const createStyles = (theme: any) =>
       marginBottom: 0,
     },
     applyAccentButton: {
-      backgroundColor: theme.colors.primary,
+      backgroundColor: '#1B6C53',
       paddingHorizontal: 14,
       paddingVertical: 12,
-      borderRadius: 8,
+      borderRadius: 6,
     },
     applyAccentButtonText: {
       color: '#fff',
+      fontFamily: theme.fonts.body,
       fontSize: 13,
       fontWeight: '600',
     },
@@ -677,9 +705,9 @@ const createStyles = (theme: any) =>
       gap: 12,
     },
     colorPreset: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       borderWidth: 2,
       borderColor: 'transparent',
     },
@@ -694,7 +722,7 @@ const createStyles = (theme: any) =>
       flex: 1,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: 8,
+      borderRadius: 6,
       paddingVertical: 12,
       alignItems: 'center',
       backgroundColor: theme.colors.inputBackground,
@@ -704,6 +732,7 @@ const createStyles = (theme: any) =>
       backgroundColor: theme.colors.primaryLight,
     },
     layoutButtonText: {
+      fontFamily: theme.fonts.body,
       fontSize: 14,
       color: theme.colors.textSecondary,
       fontWeight: '500',
@@ -713,7 +742,7 @@ const createStyles = (theme: any) =>
       fontWeight: '700',
     },
     templateToggleCard: {
-      borderRadius: 10,
+      borderRadius: 6,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.inputBackground,
@@ -729,6 +758,7 @@ const createStyles = (theme: any) =>
       borderBottomColor: theme.colors.border,
     },
     templateToggleText: {
+      fontFamily: theme.fonts.body,
       fontSize: 14,
       color: theme.colors.text,
       flex: 1,
@@ -745,23 +775,25 @@ const createStyles = (theme: any) =>
       backgroundColor: theme.colors.background,
       borderWidth: 1,
       borderColor: theme.colors.primary,
-      borderRadius: 10,
+      borderRadius: 6,
       padding: 15,
       alignItems: 'center',
     },
     previewButtonText: {
       color: theme.colors.primary,
+      fontFamily: theme.fonts.body,
       fontSize: 16,
       fontWeight: '600',
     },
     saveButton: {
-      backgroundColor: theme.colors.primary,
-      borderRadius: 10,
+      backgroundColor: '#1B6C53',
+      borderRadius: 6,
       padding: 15,
       alignItems: 'center',
     },
     saveButtonText: {
       color: '#fff',
+      fontFamily: theme.fonts.body,
       fontSize: 16,
       fontWeight: '600',
     },

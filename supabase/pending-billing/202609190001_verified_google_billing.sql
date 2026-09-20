@@ -1,0 +1,2 @@
+-- Replaced by the deployed test-rollout migration in ../migrations/202609190001_verified_google_billing.sql.
+-- Do not reapply it. For the remaining production guard, use activate-production-guard.sql.

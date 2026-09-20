@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +10,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { authService } from '../services/auth';
 import { useTheme } from '../contexts/ThemeContext';
@@ -21,7 +23,8 @@ interface LoginScreenProps {
 
 export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenProps) {
   const { theme } = useTheme();
-  const styles = createStyles(theme);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,10 +54,14 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
 
     setLoading(true);
     try {
-      await authService.signIn(email, password);
+      await authService.signIn(email.trim(), password);
       onLoginSuccess();
     } catch (error: any) {
       Alert.alert('Login Failed', error.message);
@@ -67,42 +74,56 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
     >
-      <View style={styles.content}>
-        <Text style={styles.title}>Swift Invoice</Text>
-        <Text style={styles.subtitle}>Invoice from the job site in 60 seconds</Text>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingTop: insets.top + 28, paddingBottom: insets.bottom + 24 }]}>
+        <View style={styles.heroSection}>
+          <Text style={styles.title}>Swift Invoice</Text>
+          <Text style={styles.subtitle}>
+            Invoices for the work you do.
+          </Text>
+        </View>
 
-        <View style={styles.form}>
+        <View style={styles.formCard}>
+          <Text style={styles.formTitle}>Sign in</Text>
+          <Text style={styles.formSubtitle}>Pick up where you left off.</Text>
+
+          <Text style={styles.fieldLabel}>Email</Text>
           <TextInput
             style={styles.input}
-            placeholder="Email"
+            placeholder="you@business.com"
             placeholderTextColor={theme.colors.placeholder}
-            value={email}
+            accessibilityLabel="Email"
+              value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
-            editable={!loading}
+              autoCorrect={false}
+              autoComplete="email"
+            editable={!loading && !googleLoading}
           />
 
+          <Text style={styles.fieldLabel}>Password</Text>
           <TextInput
             style={styles.input}
-            placeholder="Password"
+            placeholder="Enter password"
             placeholderTextColor={theme.colors.placeholder}
-            value={password}
+            accessibilityLabel="Password"
+              value={password}
             onChangeText={setPassword}
             secureTextEntry
-            editable={!loading}
+            editable={!loading && !googleLoading}
           />
 
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             onPress={() => navigation.navigate('ForgotPassword')}
-            disabled={loading}
+            disabled={loading || googleLoading}
             style={styles.forgotPassword}
           >
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            <Text style={styles.forgotPasswordText}>Forgot password?</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleLogin}
             disabled={loading || googleLoading}
@@ -110,7 +131,7 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Login</Text>
+              <Text style={styles.buttonText}>Sign in</Text>
             )}
           </TouchableOpacity>
 
@@ -120,33 +141,33 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
             onPress={handleGoogleSignIn}
             disabled={loading || googleLoading || !googleAvailable}
           >
             {googleLoading ? (
-              <ActivityIndicator color="#333" />
+              <ActivityIndicator color={theme.colors.text} />
             ) : (
               <>
                 <GoogleIcon size={20} />
                 <Text style={styles.googleButtonText}>
-                  {googleAvailable ? 'Continue with Google' : 'Google Sign-In requires dev build'}
+                  {googleAvailable ? 'Continue with Google' : 'Google sign-in unavailable'}
                 </Text>
               </>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             onPress={() => navigation.navigate('SignUp')}
             disabled={loading || googleLoading}
           >
             <Text style={styles.linkText}>
-              Don't have an account? <Text style={styles.linkTextBold}>Sign Up</Text>
+              New here? <Text style={styles.linkTextBold}>Create an account</Text>
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -157,39 +178,64 @@ const createStyles = (theme: any) => StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   content: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 24,
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 30,
+  },
+  heroSection: {
+    marginBottom: 18,
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontFamily: theme.fonts.body,
+    fontWeight: '700',
     color: theme.colors.text,
-    marginBottom: 8,
-    textAlign: 'center',
+    marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
+    fontFamily: theme.fonts.body,
     color: theme.colors.textSecondary,
-    marginBottom: 48,
-    textAlign: 'center',
+    lineHeight: 23,
+    maxWidth: '94%',
   },
-  form: {
-    gap: 16,
+  formCard: { paddingVertical: 24, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  formTitle: {
+    fontSize: 26,
+    fontFamily: theme.fonts.body,
+    color: theme.colors.text,
+    marginBottom: 2,
+  },
+  formSubtitle: {
+    fontSize: 13,
+    fontFamily: theme.fonts.body,
+    color: theme.colors.textSecondary,
+    marginBottom: 14,
+    lineHeight: 20,
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontFamily: theme.fonts.body,
+    color: theme.colors.textSecondary,
+    marginBottom: 6,
   },
   input: {
     backgroundColor: theme.colors.inputBackground,
-    padding: 16,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderRadius: 6,
     fontSize: 16,
-    borderWidth: 2,
+    fontFamily: theme.fonts.body,
+    borderWidth: 1,
     borderColor: theme.colors.inputBorder,
     color: theme.colors.text,
+    marginBottom: 10,
   },
   button: {
-    backgroundColor: theme.colors.primary,
-    padding: 16,
-    borderRadius: 8,
+    backgroundColor: '#1B6C53',
+    padding: 15,
+    borderRadius: 6,
     alignItems: 'center',
     marginTop: 8,
   },
@@ -199,35 +245,36 @@ const createStyles = (theme: any) => StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: theme.fonts.body,
+    fontWeight: '700',
   },
   forgotPassword: {
     alignSelf: 'flex-end',
-    marginTop: -8,
+    minHeight: 44,
+    justifyContent: 'center',
+    marginBottom: 4,
   },
   forgotPasswordText: {
     color: theme.colors.primary,
-    fontSize: 14,
+    fontSize: 13,
+    fontFamily: theme.fonts.body,
+    fontWeight: '600',
   },
   linkText: {
     textAlign: 'center',
     color: theme.colors.textSecondary,
+    fontFamily: theme.fonts.body,
     marginTop: 16,
-  },
-  resendText: {
-    textAlign: 'center',
-    color: theme.colors.textSecondary,
-    marginTop: 12,
-    fontSize: 14,
+    fontSize: 13,
   },
   linkTextBold: {
     color: theme.colors.primary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 8,
+    marginVertical: 14,
   },
   dividerLine: {
     flex: 1,
@@ -235,14 +282,16 @@ const createStyles = (theme: any) => StyleSheet.create({
     backgroundColor: theme.colors.border,
   },
   dividerText: {
-    marginHorizontal: 16,
+    marginHorizontal: 10,
     color: theme.colors.textSecondary,
+    fontFamily: theme.fonts.body,
     fontSize: 14,
+    letterSpacing: 0.9,
   },
   googleButton: {
-    backgroundColor: theme.colors.card,
-    padding: 16,
-    borderRadius: 8,
+    backgroundColor: theme.colors.cardStrong,
+    padding: 14,
+    borderRadius: 6,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
@@ -253,11 +302,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   googleButtonText: {
     color: theme.colors.text,
     fontSize: 16,
-    fontWeight: '600',
-  },
-  googleIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: theme.colors.primary,
+    fontFamily: theme.fonts.body,
+    fontWeight: '700',
   },
 });

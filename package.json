@@ -1,6 +1,6 @@
 {
   "name": "invoice-automator",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -10,11 +10,13 @@
     "clear": "expo start -c",
     "typecheck": "tsc --noEmit",
     "build:android": "eas build --platform android",
-    "submit:android": "eas submit --platform android"
+    "submit:android": "eas submit --platform android",
+    "test": "node tests/invoiceValues.test.cjs && node tests/recovery-and-sent.test.cjs && node tests/google-entitlement.test.cjs && node tests/subscription-status.test.cjs && node tests/invoice-payment-links.test.cjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
+    "@react-native-google-signin/google-signin": "^16.1.5",
     "@react-navigation/bottom-tabs": "^7.8.2",
     "@react-navigation/native": "^7.1.19",
     "@react-navigation/stack": "^7.6.2",
@@ -26,9 +28,11 @@
     "expo-constants": "~18.0.13",
     "expo-contacts": "~15.0.11",
     "expo-crypto": "~15.0.8",
+    "expo-file-system": "~19.0.24",
     "expo-image-picker": "~17.0.10",
     "expo-mail-composer": "~15.0.8",
     "expo-notifications": "~0.32.16",
+    "expo-print": "~15.0.8",
     "expo-sharing": "~14.0.8",
     "expo-status-bar": "~3.0.9",
     "expo-web-browser": "~15.0.10",

@@ -1,284 +1,60 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Linking,
-} from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
-
-interface HelpSupportScreenProps {
-  navigation: any;
-}
+import AppIcon from '../components/AppIcon';
 
 const FAQ_ITEMS = [
-  {
-    id: 1,
-    question: 'How do I create my first invoice?',
-    answer: 'Tap the "New Invoice" button on the Dashboard. Fill in your client details, add line items with descriptions and prices, and tap "Save Invoice". You can then share it via email or PDF.',
-  },
-  {
-    id: 2,
-    question: 'How do I upgrade to Pro?',
-    answer: 'Go to Settings and tap "Upgrade to Pro" in the subscription section. You\'ll get unlimited invoices, advanced features, and priority support for just $3.99/month.',
-  },
-  {
-    id: 3,
-    question: 'Can I customize my invoice template?',
-    answer: 'Yes. Go to Settings > Invoice Branding to upload your logo and choose a template style. Your selected branding is used in invoice previews and email invoices.',
-  },
-  {
-    id: 4,
-    question: 'How do I track payments?',
-    answer: 'When viewing an invoice, you can mark it as paid by tapping the payment status button. Invoices show as Pending, Paid, or Overdue based on their status and due date.',
-  },
-  {
-    id: 5,
-    question: 'Can I export invoices to PDF?',
-    answer: 'Yes! When viewing an invoice, tap the share button to export it as a PDF. You can then send it via email, messaging apps, or save it to your device.',
-  },
-  {
-    id: 6,
-    question: 'What payment methods can I accept?',
-    answer: 'You can add your preferred payment instructions in Settings (bank transfer, PayPal, Venmo, etc.). These instructions will appear on all your invoices.',
-  },
-  {
-    id: 7,
-    question: 'How do I delete an invoice?',
-    answer: 'Open the invoice you want to delete, then tap the delete button. Note: Deleted invoices cannot be recovered, so make sure to export them first if needed.',
-  },
-  {
-    id: 8,
-    question: 'What happens when my free invoices run out?',
-    answer: 'The free tier allows 2 invoices per month. When you reach this limit, you\'ll need to upgrade to Pro for unlimited invoices. Existing invoices remain accessible.',
-  },
+  ['How do I create an invoice?', 'On the Invoices tab, tap New invoice. Choose a customer, add your work and prices, then tap Save draft. Open Preview & share when you are ready to send it.'],
+  ['Can I share an invoice without an email address?', 'Yes. Open the invoice and choose Share / save PDF. You can save the file or send it using an app on your device. A customer email address is optional.'],
+  ['How do I record a payment?', 'Open the invoice and choose Record full payment after the customer has paid. This records the payment in Swift Invoice; it does not charge the customer.'],
+  ['How do I correct an invoice?', 'Open a draft and choose Edit draft. For an issued invoice, use Void invoice and create a corrected invoice. Paid invoices cannot be voided.'],
+  ['How do I change my invoice design?', 'Go to Settings, then Invoice design. Add a logo and choose your layout and colors. Preview your changes, then tap Save design. Logo uploads and removals are saved immediately.'],
+  ['Where do I add payment instructions?', 'In Settings, under Getting paid, choose your payment methods and enter the details. Tap Save business details to include them on your invoices.'],
+  ['What do the report totals mean?', 'Reports groups invoices by their invoice date. Paid shows the value of paid invoices; Outstanding shows unpaid issued invoices. These are not totals grouped by the date money reached your account.'],
+  ['What happens when I reach my free invoice limit?', 'Settings shows your current plan and remaining monthly allowance. Existing invoices remain accessible. Choose Upgrade to Pro for unlimited invoices; the store shows the price and terms before you confirm.'],
 ];
 
-const SUPPORT_OPTIONS = [
-  {
-    id: 'email',
-    icon: '📧',
-    title: 'Email Support',
-    description: 'Get help via email',
-    action: 'mailto:support@platovalabs.com',
-  },
-  {
-    id: 'feedback',
-    icon: '💬',
-    title: 'Send Feedback',
-    description: 'Share your thoughts or report issues',
-    isNavigation: true,
-  },
-];
-
-export default function HelpSupportScreen({ navigation }: HelpSupportScreenProps) {
+export default function HelpSupportScreen({ navigation }: { navigation: any }) {
   const { theme } = useTheme();
-  const styles = createStyles(theme);
-
-  const handleSupportAction = (option: any) => {
-    if (option.isNavigation) {
-      navigation.navigate('Feedback');
-    } else if (option.action) {
-      Linking.openURL(option.action);
-    }
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const openEmail = async () => {
+    try { await Linking.openURL('mailto:support@platovalabs.com'); }
+    catch { Alert.alert('Email app unavailable', 'You can email support@platovalabs.com from your preferred email app.'); }
   };
-
-  return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>How can we help?</Text>
-        <Text style={styles.headerSubtitle}>
-          Find answers to common questions or get in touch with our support team
-        </Text>
-      </View>
-
-      {/* Support Options */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Get Support</Text>
-        {SUPPORT_OPTIONS.map((option) => (
-          <TouchableOpacity
-            key={option.id}
-            style={styles.supportCard}
-            onPress={() => handleSupportAction(option)}
-          >
-            <View style={styles.supportIcon}>
-              <Text style={styles.supportEmoji}>{option.icon}</Text>
-            </View>
-            <View style={styles.supportContent}>
-              <Text style={styles.supportTitle}>{option.title}</Text>
-              <Text style={styles.supportDescription}>{option.description}</Text>
-            </View>
-            <Text style={styles.arrow}>›</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* FAQ Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
-        {FAQ_ITEMS.map((item) => (
-          <View key={item.id} style={styles.faqCard}>
-            <Text style={styles.faqQuestion}>{item.question}</Text>
-            <Text style={styles.faqAnswer}>{item.answer}</Text>
-          </View>
-        ))}
-      </View>
-
-      {/* Additional Resources */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Tips</Text>
-        <View style={styles.tipCard}>
-          <Text style={styles.tipEmoji}>💡</Text>
-          <Text style={styles.tipText}>
-            <Text style={styles.tipBold}>Pro Tip:</Text> Set up your business information in Settings before creating your first invoice to save time!
-          </Text>
-        </View>
-        <View style={styles.tipCard}>
-          <Text style={styles.tipEmoji}>⚡</Text>
-          <Text style={styles.tipText}>
-            <Text style={styles.tipBold}>Quick Action:</Text> Use the Reports tab to see your income trends and outstanding invoices at a glance.
-          </Text>
-        </View>
-        <View style={styles.tipCard}>
-          <Text style={styles.tipEmoji}>🎯</Text>
-          <Text style={styles.tipText}>
-            <Text style={styles.tipBold}>Best Practice:</Text> Include clear payment instructions and due dates on every invoice to get paid faster.
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          Still need help? Our support team is here for you!
-        </Text>
-      </View>
-    </ScrollView>
-  );
+  return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <Text style={styles.title}>How can we help?</Text>
+    <Text style={styles.description}>Find an answer below, or get in touch.</Text>
+    <View style={styles.contact}>
+      <TouchableOpacity accessibilityRole="button" style={styles.row} onPress={openEmail}>
+        <View style={styles.rowBody}><Text style={styles.label}>Email support</Text><Text style={styles.description}>support@platovalabs.com</Text></View>
+        <AppIcon name="chevron" color={theme.colors.textSecondary} />
+      </TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" style={styles.row} onPress={() => navigation.navigate('Feedback')}>
+        <Text style={[styles.label, styles.rowBody]}>Send feedback</Text><AppIcon name="chevron" color={theme.colors.textSecondary} />
+      </TouchableOpacity>
+    </View>
+    <Text style={styles.heading}>Using Swift Invoice</Text>
+    {FAQ_ITEMS.map(([question, answer], index) => <View key={question} style={styles.faq}>
+      <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: expanded === index }}
+        style={styles.row} onPress={() => setExpanded(expanded === index ? null : index)}>
+        <Text style={[styles.label, styles.rowBody]}>{question}</Text>
+        <AppIcon name={expanded === index ? 'down' : 'chevron'} color={theme.colors.textSecondary} size={20} />
+      </TouchableOpacity>
+      {expanded === index && <Text style={styles.answer}>{answer}</Text>}
+    </View>)}
+  </ScrollView>;
 }
-
-const createStyles = (theme: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  header: {
-    padding: 24,
-    paddingTop: 16,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    lineHeight: 22,
-  },
-  section: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: 16,
-  },
-  supportCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.card,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  supportIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: theme.colors.primary + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  supportEmoji: {
-    fontSize: 24,
-  },
-  supportContent: {
-    flex: 1,
-  },
-  supportTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  supportDescription: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-  },
-  arrow: {
-    fontSize: 24,
-    color: theme.colors.textSecondary,
-    marginLeft: 8,
-  },
-  faqCard: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  faqQuestion: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: 8,
-  },
-  faqAnswer: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    lineHeight: 20,
-  },
-  tipCard: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.primary + '10',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.primary + '30',
-  },
-  tipEmoji: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  tipText: {
-    flex: 1,
-    fontSize: 14,
-    color: theme.colors.text,
-    lineHeight: 20,
-  },
-  tipBold: {
-    fontWeight: '600',
-    color: theme.colors.primary,
-  },
-  footer: {
-    padding: 24,
-    paddingBottom: 40,
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
+const createStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  content: { padding: 24, paddingBottom: 40 },
+  title: { fontFamily: theme.fonts.body, fontSize: 28, fontWeight: '600', color: theme.colors.text, marginBottom: 8 },
+  description: { fontFamily: theme.fonts.body, fontSize: 14, lineHeight: 21, color: theme.colors.textSecondary },
+  heading: { fontFamily: theme.fonts.body, fontSize: 20, fontWeight: '600', color: theme.colors.text, marginBottom: 16 },
+  contact: { marginVertical: 28, gap: 12 },
+  row: { flexDirection: 'row', gap: 16, alignItems: 'center', minHeight: 48, paddingVertical: 12 },
+  rowBody: { flex: 1, gap: 4 },
+  label: { fontFamily: theme.fonts.body, fontSize: 16, lineHeight: 23, color: theme.colors.text },
+  faq: { borderTopWidth: 1, borderTopColor: theme.colors.border },
+  answer: { fontFamily: theme.fonts.body, fontSize: 15, lineHeight: 24, color: theme.colors.textSecondary, paddingBottom: 20 },
 });

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Text } from 'react-native';
+import AppIcon from '../components/AppIcon';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Text, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -39,14 +40,30 @@ function MainTabs() {
         headerShown: true,
         headerStyle: {
           backgroundColor: theme.colors.background,
+          elevation: 0,
+          shadowOpacity: 0,
         },
         headerTintColor: theme.colors.text,
         headerTitleStyle: {
           color: theme.colors.text,
+          fontFamily: theme.fonts.body,
+          fontSize: 22,
+          fontWeight: '600',
         },
+        headerShadowVisible: false,
         tabBarStyle: {
           backgroundColor: theme.colors.card,
           borderTopColor: theme.colors.border,
+          borderTopWidth: 1,
+          height: 72,
+          paddingTop: 6,
+          paddingBottom: 10,
+        },
+        tabBarLabelStyle: {
+          fontFamily: theme.fonts.body,
+          fontSize: 12,
+          letterSpacing: 0.4,
+          fontWeight: '600',
         },
       }}
     >
@@ -55,10 +72,12 @@ function MainTabs() {
         component={DashboardScreen}
         options={{
           title: 'Invoices',
-          headerTitle: 'Swift Invoice',
-          headerTitleAlign: 'center',
+          headerShown: false,
+          headerTitleAlign: 'left',
           headerRight: () => null,
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>📋</Text>,
+          tabBarIcon: ({ color }) => (
+            <AppIcon name="invoice" color={color} />
+          ),
         }}
       />
       <Tab.Screen
@@ -67,8 +86,10 @@ function MainTabs() {
         options={{
           title: 'Reports',
           headerTitle: 'Reports',
-          headerTitleAlign: 'center',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>📊</Text>,
+          headerTitleAlign: 'left',
+          tabBarIcon: ({ color }) => (
+            <AppIcon name="reports" color={color} />
+          ),
         }}
       />
       <Tab.Screen
@@ -77,9 +98,11 @@ function MainTabs() {
         options={{
           title: 'Settings',
           headerTitle: 'Settings',
-          headerTitleAlign: 'center',
+          headerTitleAlign: 'left',
           headerRight: () => null,
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>⚙️</Text>,
+          tabBarIcon: ({ color }) => (
+            <AppIcon name="settings" color={color} />
+          ),
         }}
       />
     </Tab.Navigator>
@@ -91,11 +114,7 @@ export default function AppNavigator({ isAuthenticated, onLoginSuccess }: AppNav
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
 
-  useEffect(() => {
-    checkOnboardingStatus();
-  }, [isAuthenticated]);
-
-  const checkOnboardingStatus = async () => {
+  const checkOnboardingStatus = useCallback(async () => {
     if (isAuthenticated) {
       try {
         const completed = await AsyncStorage.getItem('onboarding_completed');
@@ -108,7 +127,11 @@ export default function AppNavigator({ isAuthenticated, onLoginSuccess }: AppNav
       setShowOnboarding(false);
     }
     setCheckingOnboarding(false);
-  };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    checkOnboardingStatus();
+  }, [checkOnboardingStatus]);
 
   const handleOnboardingComplete = async () => {
     try {
@@ -120,11 +143,7 @@ export default function AppNavigator({ isAuthenticated, onLoginSuccess }: AppNav
     }
   };
 
-  if (checkingOnboarding && isAuthenticated) {
-    return null;
-  }
-
-  const navigationTheme = {
+  const navigationTheme = useMemo(() => ({
     ...(isDark ? DarkTheme : DefaultTheme),
     colors: {
       ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
@@ -134,7 +153,15 @@ export default function AppNavigator({ isAuthenticated, onLoginSuccess }: AppNav
       text: theme.colors.text,
       border: theme.colors.border,
     },
-  };
+  }), [isDark, theme]);
+
+  if (checkingOnboarding && isAuthenticated) {
+    return (
+      <View style={navStyles.splash}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer theme={navigationTheme}>
@@ -143,11 +170,17 @@ export default function AppNavigator({ isAuthenticated, onLoginSuccess }: AppNav
           headerShown: true,
           headerStyle: {
             backgroundColor: theme.colors.background,
+            elevation: 0,
+            shadowOpacity: 0,
           },
           headerTintColor: theme.colors.text,
           headerTitleStyle: {
             color: theme.colors.text,
+            fontFamily: theme.fonts.headline,
+            fontSize: 21,
+            letterSpacing: 0.3,
           },
+          headerShadowVisible: false,
         }}
       >
         {!isAuthenticated ? (
@@ -155,13 +188,13 @@ export default function AppNavigator({ isAuthenticated, onLoginSuccess }: AppNav
             <Stack.Screen name="Login" options={{ headerShown: false }}>
               {(props) => <LoginScreen {...props} onLoginSuccess={onLoginSuccess} />}
             </Stack.Screen>
-            <Stack.Screen name="SignUp" options={{ title: 'Sign Up' }}>
+            <Stack.Screen name="SignUp" options={{ title: 'Create an account', headerTitleStyle: { fontFamily: theme.fonts.body, fontSize: 20, fontWeight: '600', color: theme.colors.text } }}>
               {(props) => <SignUpScreen {...props} onSignUpSuccess={onLoginSuccess} />}
             </Stack.Screen>
             <Stack.Screen 
               name="ForgotPassword" 
               component={ForgotPasswordScreen}
-              options={{ title: 'Reset Password' }}
+              options={{ title: 'Reset password', headerTitleStyle: { fontFamily: theme.fonts.body, fontSize: 20, fontWeight: '600', color: theme.colors.text } }}
             />
           </>
         ) : showOnboarding ? (
@@ -178,32 +211,32 @@ export default function AppNavigator({ isAuthenticated, onLoginSuccess }: AppNav
             <Stack.Screen
               name="NewInvoice"
               component={NewInvoiceScreen}
-              options={{ title: 'New Invoice' }}
+              options={({ route }) => ({ title: (route.params as { invoiceId?: string } | undefined)?.invoiceId ? 'Edit draft' : 'New invoice', headerTitleStyle: { fontFamily: theme.fonts.body, fontSize: 20, fontWeight: '600', color: theme.colors.text } })}
             />
             <Stack.Screen
               name="InvoiceDetail"
               component={InvoiceDetailScreen}
-              options={{ title: 'Invoice Details' }}
+              options={{ title: 'Invoice', headerTitleStyle: { fontFamily: theme.fonts.body, fontSize: 20, fontWeight: '600', color: theme.colors.text } }}
             />
             <Stack.Screen
               name="Feedback"
               component={FeedbackScreen}
-              options={{ title: 'Send Feedback' }}
+              options={{ title: 'Send feedback', headerTitleStyle: { fontFamily: theme.fonts.body, fontSize: 20, fontWeight: '600', color: theme.colors.text } }}
             />
             <Stack.Screen
               name="HelpSupport"
               component={HelpSupportScreen}
-              options={{ title: 'Help & Support' }}
+              options={{ title: 'Help & support', headerTitleStyle: { fontFamily: theme.fonts.body, fontSize: 20, fontWeight: '600', color: theme.colors.text } }}
             />
             <Stack.Screen
               name="InvoiceBranding"
               component={InvoiceBrandingScreen}
-              options={{ title: 'Invoice Branding' }}
+              options={{ title: 'Invoice design', headerTitleStyle: { fontFamily: theme.fonts.body, fontSize: 20, fontWeight: '600', color: theme.colors.text } }}
             />
             <Stack.Screen
               name="TemplatePreview"
               component={TemplatePreviewScreen}
-              options={{ title: 'Template Preview' }}
+              options={{ title: 'Invoice preview', headerTitleStyle: { fontFamily: theme.fonts.body, fontSize: 20, fontWeight: '600', color: theme.colors.text } }}
             />
           </>
         )}
@@ -211,3 +244,11 @@ export default function AppNavigator({ isAuthenticated, onLoginSuccess }: AppNav
     </NavigationContainer>
   );
 }
+
+const navStyles = StyleSheet.create({
+  splash: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

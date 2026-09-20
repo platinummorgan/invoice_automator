@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useState, useMemo } from 'react';
 import {
   View,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -19,7 +21,8 @@ interface ForgotPasswordScreenProps {
 
 export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScreenProps) {
   const { theme } = useTheme();
-  const styles = createStyles(theme);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -28,10 +31,14 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
       Alert.alert('Error', 'Please enter your email address');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
 
     setLoading(true);
     try {
-      await authService.resetPassword(email);
+      await authService.resetPassword(email.trim());
       Alert.alert(
         'Check Your Email',
         'We sent you a password reset link. Please check your email and follow the instructions.',
@@ -53,15 +60,20 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={insets.top + 44}
     >
-      <View style={styles.content}>
-        <Text style={styles.title}>Reset Password</Text>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <Text style={styles.title}>Reset password</Text>
         <Text style={styles.subtitle}>
           Enter your email address and we'll send you a link to reset your password.
         </Text>
 
         <View style={styles.form}>
+          <Text style={styles.label}>Email</Text>
           <TextInput
+            accessibilityLabel="Email"
+            autoComplete="email"
+            autoCorrect={false}
             style={styles.input}
             placeholder="Email"
             placeholderTextColor={theme.colors.placeholder}
@@ -73,7 +85,7 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
             autoFocus
           />
 
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleResetPassword}
             disabled={loading}
@@ -81,18 +93,18 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Send Reset Link</Text>
+              <Text style={styles.buttonText}>Send reset link</Text>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             onPress={() => navigation.goBack()}
             disabled={loading}
           >
-            <Text style={styles.linkText}>Back to Login</Text>
+            <Text style={styles.linkText}>Back to sign in</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -103,40 +115,42 @@ const createStyles = (theme: any) => StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   content: {
-    flex: 1,
-    justifyContent: 'center',
+    flexGrow: 1,
+    paddingTop: 32,
     padding: 24,
   },
   title: {
+    fontFamily: theme.fonts.body,
     fontSize: 32,
     fontWeight: 'bold',
     color: theme.colors.text,
     marginBottom: 8,
-    textAlign: 'center',
   },
   subtitle: {
+    fontFamily: theme.fonts.body,
     fontSize: 16,
     color: theme.colors.textSecondary,
     marginBottom: 32,
-    textAlign: 'center',
     lineHeight: 22,
   },
+  label: { fontFamily: theme.fonts.body, fontSize: 14, fontWeight: '600', color: theme.colors.text },
   form: {
     gap: 16,
   },
   input: {
     backgroundColor: theme.colors.inputBackground,
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 6,
+    fontFamily: theme.fonts.body,
     fontSize: 16,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: theme.colors.inputBorder,
     color: theme.colors.text,
   },
   button: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: '#1B6C53',
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 6,
     alignItems: 'center',
     marginTop: 8,
   },
@@ -145,11 +159,11 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
+    fontFamily: theme.fonts.body,
     fontSize: 16,
     fontWeight: '600',
   },
   linkText: {
-    textAlign: 'center',
     color: theme.colors.primary,
     marginTop: 16,
     fontWeight: '600',

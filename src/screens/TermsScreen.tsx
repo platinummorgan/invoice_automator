@@ -1,4 +1,5 @@
-import React from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,7 +17,7 @@ interface TermsScreenProps {
 
 export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
   const { theme } = useTheme();
-  const styles = createStyles(theme);
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (
     <Modal
@@ -25,10 +26,10 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Terms of Service</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close terms of service" onPress={onClose} style={styles.closeButton}>
             <Text style={styles.closeButtonText}>Done</Text>
           </TouchableOpacity>
         </View>
@@ -73,7 +74,9 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
 
           <Text style={styles.sectionTitle}>6. Payment and Fees</Text>
           <Text style={styles.paragraph}>
-            Swift Invoice is currently provided free of charge. We reserve the right to introduce paid features or subscription plans in the future, with advance notice to users.
+            Swift Invoice offers a free tier and optional paid subscription plans.
+            Subscription features, pricing, billing terms, and cancellation details
+            are provided in-app and through Google Play.
           </Text>
 
           <Text style={styles.sectionTitle}>7. Email Delivery</Text>
@@ -118,7 +121,7 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
 
           <View style={styles.bottomSpacer} />
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -126,7 +129,7 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
 const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -137,14 +140,21 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   headerTitle: {
+    flex: 1,
+    marginRight: 12,
+    fontFamily: theme.fonts.body,
     fontSize: 20,
     fontWeight: '600',
     color: theme.colors.text,
   },
   closeButton: {
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: 'center',
     padding: 8,
   },
   closeButtonText: {
+    fontFamily: theme.fonts.body,
     fontSize: 16,
     color: theme.colors.primary,
     fontWeight: '600',
@@ -153,15 +163,17 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 20,
+    padding: 24,
   },
   lastUpdated: {
+    fontFamily: theme.fonts.body,
     fontSize: 14,
     color: theme.colors.textSecondary,
     marginBottom: 24,
     fontStyle: 'italic',
   },
   sectionTitle: {
+    fontFamily: theme.fonts.body,
     fontSize: 18,
     fontWeight: '600',
     color: theme.colors.text,
@@ -169,12 +181,14 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginBottom: 12,
   },
   paragraph: {
+    fontFamily: theme.fonts.body,
     fontSize: 15,
     color: theme.colors.text,
     lineHeight: 22,
     marginBottom: 12,
   },
   bulletPoint: {
+    fontFamily: theme.fonts.body,
     fontSize: 15,
     color: theme.colors.text,
     lineHeight: 22,

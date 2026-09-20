@@ -24,3 +24,14 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: App regression tests
+        run: npm test
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Billing verifier tests
+        run: deno test --node-modules-dir=none supabase/functions/_tests/googleBilling.test.ts

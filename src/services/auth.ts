@@ -1,5 +1,7 @@
+import { RECOVERY_REDIRECT } from '../utils/recoveryLink';
 import { supabase } from './supabase';
 import { Profile } from '../types';
+import Constants from 'expo-constants';
 
 type GoogleSigninClient = {
   configure: (params: { webClientId: string }) => void;
@@ -10,8 +12,9 @@ type GoogleSigninClient = {
 let cachedGoogleSignin: GoogleSigninClient | null = null;
 let googleSigninInitAttempted = false;
 
-const GOOGLE_WEB_CLIENT_ID =
-  '884636010114-k636nc5f4397hve5vmfj765m9o9rsbgj.apps.googleusercontent.com';
+const GOOGLE_WEB_CLIENT_ID: string =
+  (Constants.expoConfig?.extra?.googleWebClientId as string | undefined) ??
+  '';
 
 function getGoogleSigninClient(): GoogleSigninClient | null {
   if (cachedGoogleSignin) return cachedGoogleSignin;
@@ -154,7 +157,7 @@ export const authService = {
   },
 
   async resetPassword(email: string) {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: RECOVERY_REDIRECT });
     if (error) throw error;
   },
 

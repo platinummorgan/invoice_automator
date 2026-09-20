@@ -1,0 +1,7 @@
+# These endpoints enforce authentication inside the function: Supabase getUser
+# for purchases, and a dedicated scheduler secret for reconciliation.
+[functions.verify-google-purchase]
+verify_jwt = false
+
+[functions.reconcile-google-purchases]
+verify_jwt = false

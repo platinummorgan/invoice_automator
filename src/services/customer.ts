@@ -18,6 +18,8 @@ export const customerService = {
   },
 
   async createCustomer(customer: Omit<Customer, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<Customer> {
+    if (!customer.name?.trim()) throw new Error('Customer name is required');
+
     const session = await supabase.auth.getSession();
     if (!session.data.session?.user) throw new Error('Not authenticated');
 

@@ -5,17 +5,27 @@
   },
   "build": {
     "development": {
+      "environment": "development",
       "developmentClient": true,
       "distribution": "internal"
     },
     "preview": {
+      "environment": "preview",
       "distribution": "internal"
     },
     "production": {
+      "environment": "production",
       "autoIncrement": true,
       "credentialsSource": "local",
       "env": {
         "GRADLE_OPTS": "-Dorg.gradle.jvmargs=-Xmx4096m"
+      }
+    },
+    "test": {
+      "extends": "production",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
       }
     }
   },
