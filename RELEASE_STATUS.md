@@ -7,7 +7,7 @@ Verified September 20, 2026. This document is the authoritative summary; older r
 | Surface | Status |
 | --- | --- |
 | Google Play production | 1.2.1, version code 15, completed rollout (API verified) |
-| Android candidate | 1.2.2 (19), EAS build in progress after payment-link improvements |
+| Android candidate | 1.2.2 (19), EAS build finished; AAB attached to GitHub draft |
 | Previous candidate build 18 | Finished, superseded; not the final artifact |
 | GitHub release | 1.2.2 draft created; not marked published |
 | Play Data safety | Owner reports submitted for review; approval not verified |
@@ -21,6 +21,9 @@ No Play production draft was present when checked. The earlier build-18 upload w
 - Merged into main by [PR #2](https://github.com/platinummorgan/invoice_automator/pull/2), merge commit 22e43bb3b7862cd88431a046e857ed2d8ff87910; identical source tree at merge.
 - [EAS build 19](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/cb6900f0-0d62-46af-978d-d3891648495b).
 - [GitHub releases](https://github.com/platinummorgan/invoice_automator/releases): v1.2.2 is a draft, visible to repository maintainers.
+- Artifact: swift-invoice-1.2.2-19.aab (70314528 bytes); SHA-256: a5b6d811b0854fb5aed58fd5636686381bfebf6ed5e368f8a26c99ff27f4090e.
+- Draft assets include the AAB, SHA256SUMS.txt and release-manifest.json. The AAB is a Play upload artifact, not a directly installable APK.
+- Later main commits only update documentation and backend deployment records; Android app source/configuration still matches the recorded build commit.
 - GitHub PR CI and credential scanning passed. Local working tree contains no credentials or build artifacts tracked by Git.
 
 ## Changes in 1.2.2
@@ -42,7 +45,7 @@ All four migrations match remote history. The seven billing/scheduler function b
 
 ## Before production rollout
 
-- Finish the final AAB, inspect Play validation and test the final build on a device.
+- Upload build 19 to Play Console, inspect validation and test the final build on a device.
 - Owner confirmed draft save/reopen, payment recording and sign-out/sign-in on the current test build. Recheck the final build, including password reset and the improved PDF/payment links.
 - Verify real Google test renewal and refund/revocation; local simulations alone do not close these checks.
 - Resolve Diagnostics sharing disclosure: current submitted answer is collected, not shared, non-ephemeral, required, analytics; the sharing exemption has not been confirmed.
