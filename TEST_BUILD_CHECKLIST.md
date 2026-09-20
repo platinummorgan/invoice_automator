@@ -59,3 +59,7 @@ Select PayPal without details and save: expect a clear validation message. Paste
 ## Owner confirmation — September 20, 2026
 
 The owner confirmed saving/reopening drafts, recording a payment, and signing out/back in all worked on the current test build. Final-build acceptance and live renewal/refund checks remain separate.
+
+## Build 19 follow-up
+
+After the internal build was released and the owner was asked to check PDF/payment links and subscription restore, the owner reported “everything passed again.” Record those requested checks as passed; do not infer live automatic renewal or refund/revocation coverage from this statement.

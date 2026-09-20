@@ -8,7 +8,7 @@ Verified September 20, 2026. This document is the authoritative summary; older r
 | --- | --- |
 | Google Play production | 1.2.1, version code 15, completed rollout (API verified) |
 | Android candidate | 1.2.2 (19), uploaded and API-validated; production draft saved |
-| Google Play internal testing | 1.2.2 (19), completed release status (API verified); tester access/device install still to confirm |
+| Google Play internal testing | 1.2.2 (19), completed release status (API verified); owner reports final-build checks passed |
 | Previous candidate build 18 | Finished, superseded; not the final artifact |
 | GitHub release | 1.2.2 draft created; not marked published |
 | Play Data safety | Owner reports submitted for review; approval not verified |
@@ -16,7 +16,7 @@ Verified September 20, 2026. This document is the authoritative summary; older r
 
 Build 19 is now saved as a production draft and released to internal testing. A fresh track read confirmed production 15 remains completed, production 19 is draft, and internal 19 is completed. No public production rollout was started. The earlier build-18 upload was rolled back after a commit-parameter error.
 
-Tester opt-in: https://play.google.com/apps/testing/com.invoiceautomator.app. Tester eligibility and Play propagation still require checking with the intended Google account.
+Tester opt-in: https://play.google.com/apps/testing/com.invoiceautomator.app. The owner reports the requested final-build tests passed.
 
 ## Candidate provenance
 
@@ -42,14 +42,14 @@ Tester opt-in: https://play.google.com/apps/testing/com.invoiceautomator.app. Te
 
 TypeScript, five app regression suites and three shared billing verifier tests pass. Local PostgreSQL billing and invoice transaction tests pass. These SQL tests roll back fixtures and do not touch production customer data.
 
-The owner tested license purchase, restore, cancellation and return to Free after expiry. Google acknowledged the test purchase. Saved payment details were confirmed to appear on invoices; additional link-label and export-load improvements need the new build's device check.
+The owner tested license purchase, restore, cancellation and return to Free after expiry. Google acknowledged the test purchase. The owner subsequently reported the final build passed the requested app, PDF/payment-link and restore checks. Live automatic renewal and refund/revocation coverage is being confirmed separately.
 
 All four migrations match remote history. The seven billing/scheduler function bodies match the local migrations; billing tables have RLS and no client grants. All nine deployed Edge Function entrypoints and shared billing helpers match repository source; the pre-existing delete-account function was recovered into main without redeployment. Cron is active every five minutes with recent HTTP 200 responses.
 
 ## Before production rollout
 
-- Google API edit validation passed for build 19. Inspect Console warnings/pre-launch results and install the internal build for final device checks. API validation is not policy approval or device acceptance.
-- Owner confirmed draft save/reopen, payment recording and sign-out/sign-in on the current test build. Recheck the final build, including password reset and the improved PDF/payment links.
+- Google API edit validation and owner device checks passed for build 19. Console policy/pre-launch results are not yet verified.
+- Owner confirmed draft save/reopen, payment recording and sign-out/sign-in, then reported the final-build checks passed, including the requested PDF/payment-link and restore checks. Password reset was not separately confirmed.
 - Verify real Google test renewal and refund/revocation; local simulations alone do not close these checks.
 - Resolve Diagnostics sharing disclosure: current submitted answer is collected, not shared, non-ephemeral, required, analytics; the sharing exemption has not been confirmed.
 - Coordinate public billing enablement and full profile protection with the compatible app rollout. They remain deliberately test-scoped; see supabase/README.md.
