@@ -7,13 +7,16 @@ Verified September 20, 2026. This document is the authoritative summary; older r
 | Surface | Status |
 | --- | --- |
 | Google Play production | 1.2.1, version code 15, completed rollout (API verified) |
-| Android candidate | 1.2.2 (19), EAS build finished; AAB attached to GitHub draft |
+| Android candidate | 1.2.2 (19), uploaded and API-validated; production draft saved |
+| Google Play internal testing | 1.2.2 (19), completed release status (API verified); tester access/device install still to confirm |
 | Previous candidate build 18 | Finished, superseded; not the final artifact |
 | GitHub release | 1.2.2 draft created; not marked published |
 | Play Data safety | Owner reports submitted for review; approval not verified |
 | Supabase | All four tracked migrations applied; billing function source matches deployment |
 
-No Play production draft was present when checked. The earlier build-18 upload was rolled back after a commit-parameter error.
+Build 19 is now saved as a production draft and released to internal testing. A fresh track read confirmed production 15 remains completed, production 19 is draft, and internal 19 is completed. No public production rollout was started. The earlier build-18 upload was rolled back after a commit-parameter error.
+
+Tester opt-in: https://play.google.com/apps/testing/com.invoiceautomator.app. Tester eligibility and Play propagation still require checking with the intended Google account.
 
 ## Candidate provenance
 
@@ -45,7 +48,7 @@ All four migrations match remote history. The seven billing/scheduler function b
 
 ## Before production rollout
 
-- Upload build 19 to Play Console, inspect validation and test the final build on a device.
+- Google API edit validation passed for build 19. Inspect Console warnings/pre-launch results and install the internal build for final device checks. API validation is not policy approval or device acceptance.
 - Owner confirmed draft save/reopen, payment recording and sign-out/sign-in on the current test build. Recheck the final build, including password reset and the improved PDF/payment links.
 - Verify real Google test renewal and refund/revocation; local simulations alone do not close these checks.
 - Resolve Diagnostics sharing disclosure: current submitted answer is collected, not shared, non-ephemeral, required, analytics; the sharing exemption has not been confirmed.
