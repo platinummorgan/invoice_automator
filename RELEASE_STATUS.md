@@ -7,7 +7,7 @@ Verified September 21, 2026. This document is the authoritative summary; older r
 | Surface | Status |
 | --- | --- |
 | Google Play production | 1.2.1, version code 15, completed rollout (API verified) |
-| iOS App Store candidate | 1.3.0 source prepared; prior EAS store build 27 verifies credentials for the same bundle ID; fresh build and Mac/TestFlight validation pending |
+| iOS App Store candidate | 1.3.0 (28), signed EAS App Store build finished; Mac/TestFlight validation and App Store submission pending |
 | Android candidate | 1.2.2 (19), uploaded and API-validated; production draft saved |
 | Google Play internal testing | 1.2.2 (19), completed release status (API verified); owner reports final-build checks passed |
 | Workflow test APK | 1.2.2 (20), EAS build finished and installed on the connected device; not uploaded to Play |
@@ -66,7 +66,9 @@ All five migrations match remote history. The seven billing/scheduler function b
 
 Version 1.3.0 adds the iOS native configuration, Sign in with Apple, browser-based Google OAuth fallback, permanent in-app account deletion, App Store Connect submit target, and iPhone-safe plan messaging. The first iPhone release does not offer an in-app Pro purchase. Existing account entitlements still load; Android remains the purchase and restore platform until Apple billing is implemented.
 
-The remaining work must be completed with the Apple Developer/App Store Connect accounts: verify the bundle identifier and Sign in with Apple capability, enable the Apple provider and callback in Supabase, create the EAS iOS production build, validate it through TestFlight, finish App Privacy and listing metadata, and submit for review. See `IOS_APP_STORE_SUBMISSION.md`.
+[EAS iOS build 28](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/7d92d41f-cd6a-4e39-8a2b-15b94fdb8e1e) finished successfully from source commit `b861072f2344cf03d208bc2936fcb2c357a79c1b`. The signed IPA is 16,354,604 bytes with SHA-256 `6710D98B00F56906AE97CDAA53A4F11EC2F14D1003516EE3728C1C327F2DD2A5`. The temporary direct artifact URL expires; use the stable EAS build page.
+
+The remaining work must be completed with the Apple Developer/App Store Connect accounts: verify the Apple provider and callback in Supabase, upload build 28 to App Store Connect, validate it through TestFlight, finish App Privacy and listing metadata, and submit for review. See `IOS_APP_STORE_SUBMISSION.md`.
 
 ## Branch scope
 

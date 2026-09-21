@@ -1,6 +1,6 @@
 # Swift Invoice: first iOS App Store submission
 
-This repository is prepared for iOS version `1.3.0` with bundle identifier `com.invoiceautomator.app`. EAS Build manages the iOS certificate and provisioning profile remotely. The App Store Connect app record is configured as Apple ID `6788092733`.
+This repository is prepared for iOS version `1.3.0` with bundle identifier `com.invoiceautomator.app`. EAS Build manages the iOS certificate and provisioning profile remotely. The App Store Connect app record is configured as Apple ID `6788092733`. Signed App Store build `1.3.0 (28)` completed successfully at [EAS build 28](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/7d92d41f-cd6a-4e39-8a2b-15b94fdb8e1e).
 
 The first iPhone release uses the free plan. It does not sell Pro inside the iOS app. Existing account entitlements still load from the Swift Invoice account, while new Pro purchases and purchase restoration remain Android-only until Apple billing is added in a later release.
 
@@ -43,7 +43,7 @@ EAS already produced successful App Store builds 23, 24, 26, and 27 for this bun
 
 ## 3. Build the App Store binary
 
-Run:
+Build 28 is already complete from commit `b861072f2344cf03d208bc2936fcb2c357a79c1b`. Build again only after changing source. The build command is:
 
 ```bash
 npm run build:ios
