@@ -122,11 +122,15 @@ export const subscriptionService = {
     return () => { billingListeners.delete(listener); };
   },
   isIapAvailable() {
-    return !!getIapModule();
+    return Platform.OS === 'android' && !!getIapModule();
   },
 
   // Initialize IAP (call this on app start)
   async initialize() {
+    if (Platform.OS !== 'android') {
+      return { purchaseUpdateSubscription: null, purchaseErrorSubscription: null };
+    }
+
     const ready = await initIAP();
     if (!ready) {
       return { purchaseUpdateSubscription: null, purchaseErrorSubscription: null };
@@ -205,7 +209,9 @@ export const subscriptionService = {
       if (invoiceCount >= invoiceLimit) {
         return {
           allowed: false,
-          reason: `You've reached your free tier limit of ${invoiceLimit} invoices this month. Upgrade to Pro for unlimited invoices.`,
+          reason: Platform.OS === 'android'
+            ? `You've reached your free tier limit of ${invoiceLimit} invoices this month. Upgrade to Pro for unlimited invoices.`
+            : `You've reached your free tier limit of ${invoiceLimit} invoices this month. Pro subscriptions are not offered in this iPhone release.`,
         };
       }
 
@@ -368,6 +374,10 @@ export const subscriptionService = {
   // Restore purchases (for users who already purchased)
   async restorePurchases() {
     try {
+      if (Platform.OS !== 'android') {
+        throw new Error('Purchase restoration is currently available through Google Play on Android.');
+      }
+
       const ready = await initIAP();
       if (!ready) {
         throw new Error(
@@ -392,6 +402,8 @@ export const subscriptionService = {
   // Check subscription status from Google Play
   async syncSubscriptionStatus() {
     try {
+      if (Platform.OS !== 'android') return;
+
       const ready = await initIAP();
       if (!ready) return;
       const iap = requireIapModule();

@@ -35,7 +35,7 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-          <Text style={styles.lastUpdated}>Last Updated: November 6, 2025</Text>
+          <Text style={styles.lastUpdated}>Last Updated: September 21, 2026</Text>
 
           <Text style={styles.sectionTitle}>1. Acceptance of Terms</Text>
           <Text style={styles.paragraph}>
@@ -44,7 +44,7 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
 
           <Text style={styles.sectionTitle}>2. Description of Service</Text>
           <Text style={styles.paragraph}>
-            Swift Invoice provides a mobile application that allows you to create, manage, and send invoices to your customers. The service includes invoice creation, customer management, email delivery, and basic payment tracking features.
+            Swift Invoice lets you create, manage, and send quotes, invoices, and receipts; store customer records and job pictures; and track payments.
           </Text>
 
           <Text style={styles.sectionTitle}>3. User Accounts</Text>
@@ -74,9 +74,7 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
 
           <Text style={styles.sectionTitle}>6. Payment and Fees</Text>
           <Text style={styles.paragraph}>
-            Swift Invoice offers a free tier and optional paid subscription plans.
-            Subscription features, pricing, billing terms, and cancellation details
-            are provided in-app and through Google Play.
+            Swift Invoice offers a free tier. Pro subscriptions are currently sold through Google Play on Android. The first iPhone release does not offer a Pro purchase. Existing account entitlements may be available across devices. Pricing, renewal, and cancellation terms are shown by the store before purchase.
           </Text>
 
           <Text style={styles.sectionTitle}>7. Email Delivery</Text>
@@ -101,7 +99,7 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
 
           <Text style={styles.sectionTitle}>11. Termination</Text>
           <Text style={styles.paragraph}>
-            You may terminate your account at any time by deleting it through the app. We reserve the right to suspend or terminate accounts that violate these terms or engage in abusive behavior.
+            You may terminate your account at any time with Settings → Delete account. This permanently deletes stored account data and cannot be undone. Store subscriptions are managed separately and are not canceled by deleting the account. We reserve the right to suspend or terminate accounts that violate these terms or engage in abusive behavior.
           </Text>
 
           <Text style={styles.sectionTitle}>12. Changes to Terms</Text>
@@ -116,7 +114,7 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
 
           <Text style={styles.sectionTitle}>14. Contact Information</Text>
           <Text style={styles.paragraph}>
-            If you have questions about these Terms of Service, please contact us through the app settings or at the contact information provided in your app store listing.
+            If you have questions about these Terms of Service, contact support@platovalabs.com or use Help & support in the app.
           </Text>
 
           <View style={styles.bottomSpacer} />

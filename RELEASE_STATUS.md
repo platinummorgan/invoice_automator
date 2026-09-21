@@ -7,6 +7,7 @@ Verified September 21, 2026. This document is the authoritative summary; older r
 | Surface | Status |
 | --- | --- |
 | Google Play production | 1.2.1, version code 15, completed rollout (API verified) |
+| iOS App Store candidate | 1.3.0 source prepared; prior EAS store build 27 verifies credentials for the same bundle ID; fresh build and Mac/TestFlight validation pending |
 | Android candidate | 1.2.2 (19), uploaded and API-validated; production draft saved |
 | Google Play internal testing | 1.2.2 (19), completed release status (API verified); owner reports final-build checks passed |
 | Workflow test APK | 1.2.2 (20), EAS build finished and installed on the connected device; not uploaded to Play |
@@ -61,6 +62,12 @@ All five migrations match remote history. The seven billing/scheduler function b
 - Coordinate public billing enablement and full profile protection with the compatible app rollout. They remain deliberately test-scoped; see supabase/README.md.
 - Publish the GitHub release when the store rollout is ready, attaching the matching build and checksum.
 
+## First iOS submission
+
+Version 1.3.0 adds the iOS native configuration, Sign in with Apple, browser-based Google OAuth fallback, permanent in-app account deletion, App Store Connect submit target, and iPhone-safe plan messaging. The first iPhone release does not offer an in-app Pro purchase. Existing account entitlements still load; Android remains the purchase and restore platform until Apple billing is implemented.
+
+The remaining work must be completed with the Apple Developer/App Store Connect accounts: verify the bundle identifier and Sign in with Apple capability, enable the Apple provider and callback in Supabase, create the EAS iOS production build, validate it through TestFlight, finish App Privacy and listing metadata, and submit for review. See `IOS_APP_STORE_SUBMISSION.md`.
+
 ## Branch scope
 
-The Android release branch preserves the tested Android work. Separate iOS/App Store readiness commits remain on codex/android-1-2-1-subscription-restore and its existing draft PR; they have not been overwritten or folded into this Android candidate. GitHub Pages privacy/deletion changes from main are incorporated.
+The tested Android workflow is preserved in commit `fa8dd3d`. The current main branch folds the relevant iOS readiness work into the newer quote-to-receipt codebase; the older iOS branch is historical.

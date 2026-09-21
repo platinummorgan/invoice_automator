@@ -108,6 +108,7 @@ export default function SettingsScreen({ navigation, route }: SettingsScreenProp
   const [saving, setSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const insets = useSafeAreaInsets();
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [templateSettings, setTemplateSettings] =
@@ -534,6 +535,46 @@ export default function SettingsScreen({ navigation, route }: SettingsScreenProp
     );
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes your Swift Invoice account, business profile, customers, quotes, invoices, payments, logo, and job pictures. Store billing is managed separately and is not canceled automatically.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Permanently delete everything?',
+              'This cannot be undone. Save any documents you need before continuing.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete account',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      setDeletingAccount(true);
+                      await authService.deleteAccount();
+                    } catch (error: any) {
+                      Alert.alert(
+                        'Delete account failed',
+                        error?.message || 'Unable to delete your account. Please contact support@platovalabs.com.'
+                      );
+                    } finally {
+                      setDeletingAccount(false);
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
   const link = (label: string, onPress: () => void, detail?: string) => (
     <TouchableOpacity accessibilityRole="button" style={styles.link} onPress={onPress}>
       <View style={styles.linkBody}><Text style={styles.linkText}>{label}</Text>{detail && <Text style={styles.description}>{detail}</Text>}</View>
@@ -617,12 +658,14 @@ export default function SettingsScreen({ navigation, route }: SettingsScreenProp
           <Text style={styles.linkText}>{subscriptionStatus.isPro ? 'Swift Invoice Pro' : 'Free plan'}</Text>
           <Text style={styles.description}>{subscriptionStatus.isPro ? 'Unlimited invoices' : `${subscriptionStatus.remainingInvoices} of ${subscriptionStatus.invoiceLimit} free invoices remaining this month`}</Text>
           {subscriptionStatus.isPro && subscriptionStatus.status === 'cancelled' && subscriptionStatus.expiresAt && <Text style={styles.description}>Canceled. Pro access ends {new Date(subscriptionStatus.expiresAt).toLocaleString()}. You will not be charged again unless you resubscribe.</Text>}
-          {!subscriptionStatus.isPro && <>
+          {!subscriptionStatus.isPro && Platform.OS === 'android' && <>
             <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: upgrading, busy: upgrading }} disabled={upgrading} style={styles.secondary} onPress={handleUpgrade}>
               {upgrading ? <ActivityIndicator color={theme.colors.primary} /> : <Text style={styles.secondaryText}>Upgrade to Pro</Text>}
             </TouchableOpacity>
             <Text style={styles.description}>The store shows the price and billing terms before you confirm.</Text>
           </>}
+          {!subscriptionStatus.isPro && Platform.OS === 'ios' &&
+            <Text style={styles.description}>The first iPhone release uses the free plan. Pro purchases remain available through Google Play on Android.</Text>}
         </> : <>
           <Text style={styles.description}>Plan details are unavailable.</Text>
           {link('Reload plan details', loadSubscription)}
@@ -631,14 +674,18 @@ export default function SettingsScreen({ navigation, route }: SettingsScreenProp
       <View style={styles.section}>
         <Text style={styles.heading}>Help & information</Text>
         {link('Help & support', () => navigation.navigate('HelpSupport'))}
-        {link('Request account deletion', () => { Linking.openURL('https://platinummorgan.github.io/invoice_automator/delete-account.html').catch(() => Alert.alert('Request account deletion', 'Email support@platovalabs.com from your Swift Invoice account email with the subject Swift Invoice account deletion. Deleting your account does not cancel Google Play billing.')); })}
+        {link('Account and data deletion help', () => { Linking.openURL('https://platinummorgan.github.io/invoice_automator/delete-account.html').catch(() => Alert.alert('Account deletion help', 'Email support@platovalabs.com from your Swift Invoice account email for help with account or selected-data deletion.')); })}
         {link('Send feedback', () => navigation.navigate('Feedback'))}
         {link('Privacy policy', () => setShowPrivacy(true))}
         {link('Terms of service', () => setShowTerms(true))}
         {link('About Swift Invoice', () => setShowAbout(true))}
         <Text style={styles.description}>{getAppVersionLabel()}</Text>
       </View>
-      <TouchableOpacity accessibilityRole="button" style={styles.signOut} onPress={handleLogout}><Text style={styles.signOutText}>Sign out</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" disabled={deletingAccount} style={[styles.signOut, deletingAccount && styles.disabled]} onPress={handleLogout}><Text style={styles.signOutText}>Sign out</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: deletingAccount, busy: deletingAccount }} disabled={deletingAccount}
+        style={[styles.deleteAccount, deletingAccount && styles.disabled]} onPress={handleDeleteAccount}>
+        {deletingAccount ? <ActivityIndicator color={theme.colors.error} /> : <Text style={styles.deleteAccountText}>Delete account</Text>}
+      </TouchableOpacity>
     </ScrollView>
     <PrivacyPolicyScreen visible={showPrivacy} onClose={() => setShowPrivacy(false)} />
     <TermsScreen visible={showTerms} onClose={() => setShowTerms(false)} />
@@ -672,4 +719,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet
   linkText: { fontFamily: theme.fonts.body, fontSize: 16, color: theme.colors.text },
   signOut: { minHeight: 48, paddingVertical: 20, alignItems: 'flex-start' },
   signOutText: { fontFamily: theme.fonts.body, fontSize: 16, color: theme.colors.error },
+  deleteAccount: { minHeight: 48, borderWidth: 1, borderColor: theme.colors.error, borderRadius: 6, alignItems: 'center', justifyContent: 'center', padding: 12, marginBottom: 16 },
+  deleteAccountText: { fontFamily: theme.fonts.body, fontSize: 16, fontWeight: '600', color: theme.colors.error },
 });

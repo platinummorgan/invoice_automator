@@ -35,7 +35,7 @@ export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyS
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-          <Text style={styles.lastUpdated}>Last Updated: February 12, 2026</Text>
+          <Text style={styles.lastUpdated}>Last Updated: September 21, 2026</Text>
 
           <Text style={styles.sectionTitle}>1. Introduction</Text>
           <Text style={styles.paragraph}>
@@ -48,8 +48,9 @@ export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyS
           </Text>
           <Text style={styles.bulletPoint}>• Account information (name, email address)</Text>
           <Text style={styles.bulletPoint}>• Business information (business name, contact details)</Text>
-          <Text style={styles.bulletPoint}>• Customer information (names, email addresses)</Text>
-          <Text style={styles.bulletPoint}>• Invoice data (amounts, descriptions, dates)</Text>
+          <Text style={styles.bulletPoint}>• Customer information (names, email addresses, phone numbers)</Text>
+          <Text style={styles.bulletPoint}>• Quote, invoice, receipt, and payment records</Text>
+          <Text style={styles.bulletPoint}>• Business logos and job pictures you choose to upload</Text>
           <Text style={styles.bulletPoint}>• Payment method instructions</Text>
 
           <Text style={styles.sectionTitle}>3. How We Use Your Information</Text>
@@ -57,8 +58,8 @@ export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyS
             We use the information we collect to:
           </Text>
           <Text style={styles.bulletPoint}>• Provide, maintain, and improve our services</Text>
-          <Text style={styles.bulletPoint}>• Create and manage your invoices</Text>
-          <Text style={styles.bulletPoint}>• Help you draft invoice and receipt emails</Text>
+          <Text style={styles.bulletPoint}>• Create and manage quotes, invoices, and receipts</Text>
+          <Text style={styles.bulletPoint}>• Help you draft document emails and PDFs</Text>
           <Text style={styles.bulletPoint}>• Authenticate your account and ensure security</Text>
           <Text style={styles.bulletPoint}>• Respond to your comments and questions</Text>
 
@@ -67,14 +68,14 @@ export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyS
             Your data is stored securely using Supabase, a secure cloud database platform. We implement appropriate technical and organizational measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction.
           </Text>
 
-          <Text style={styles.sectionTitle}>5. Email Sending</Text>
+          <Text style={styles.sectionTitle}>5. Service Providers and Email</Text>
           <Text style={styles.paragraph}>
-            When you choose to email an invoice or receipt, Swift Invoice opens your device's email application with a pre-filled draft. Emails are sent by your email provider from your device, not by Swift Invoice servers.
+            We use Supabase for cloud storage and authentication, Apple or Google when you choose their sign-in option, and Google Play Billing for Android Pro subscriptions. When you email a quote, invoice, or receipt, Swift Invoice opens your device's email application with a pre-filled draft. Your email provider sends that message from your device.
           </Text>
 
           <Text style={styles.sectionTitle}>6. Data Retention</Text>
           <Text style={styles.paragraph}>
-            We retain your information for as long as your account is active or as needed to provide you services. To request deletion of your account and associated data, open Settings → Request account deletion or email support@platovalabs.com from your account email. We verify account ownership before processing deletion. Account deletion does not cancel a Google Play subscription; manage billing separately in Google Play.
+            We retain your information while your account is active or as needed to provide the service. You can permanently delete your account and its stored data in Settings → Delete account. Exported documents, messages already sent to recipients, and copies stored on your device are outside our control. Account deletion does not cancel store billing; subscriptions must be managed separately in the store where they were purchased.
           </Text>
 
           <Text style={styles.sectionTitle}>7. Your Rights</Text>
@@ -99,7 +100,7 @@ export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyS
 
           <Text style={styles.sectionTitle}>10. Contact Us</Text>
           <Text style={styles.paragraph}>
-            If you have any questions about this Privacy Policy, please contact us through the app settings or at the contact information provided in your app store listing.
+            If you have questions about this Privacy Policy, contact support@platovalabs.com or use Help & support in the app.
           </Text>
 
           <View style={styles.bottomSpacer} />

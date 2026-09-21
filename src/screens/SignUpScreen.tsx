@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { authService } from '../services/auth';
 import { useTheme } from '../contexts/ThemeContext';
 import { GoogleIcon } from '../components/GoogleIcon';
@@ -36,9 +37,14 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleAvailable, setGoogleAvailable] = useState(true);
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(false);
 
   useEffect(() => {
     setGoogleAvailable(authService.isGoogleSignInAvailable());
+    authService.isAppleSignInAvailable().then(setAppleAvailable).catch(() => {
+      setAppleAvailable(false);
+    });
   }, []);
 
   const handleGoogleSignIn = async () => {
@@ -52,6 +58,20 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
       }
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    setAppleLoading(true);
+    try {
+      await authService.signInWithApple();
+      onSignUpSuccess();
+    } catch (error: any) {
+      if (!/cancelled/i.test(error.message || '')) {
+        Alert.alert('Apple Sign-In Failed', error.message || 'Please try again');
+      }
+    } finally {
+      setAppleLoading(false);
     }
   };
 
@@ -123,7 +143,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               value={fullName}
               onChangeText={setFullName}
               autoCapitalize="words"
-              editable={!loading && !googleLoading}
+              editable={!loading && !googleLoading && !appleLoading}
             />
 
             <Text style={styles.fieldLabel}>Email</Text>
@@ -138,7 +158,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               keyboardType="email-address"
               autoCorrect={false}
               autoComplete="email"
-              editable={!loading && !googleLoading}
+              editable={!loading && !googleLoading && !appleLoading}
             />
 
             <Text style={styles.fieldLabel}>Password</Text>
@@ -150,7 +170,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               value={password}
               onChangeText={setPassword}
               secureTextEntry
-              editable={!loading && !googleLoading}
+              editable={!loading && !googleLoading && !appleLoading}
             />
 
             <Text style={styles.fieldLabel}>Confirm password</Text>
@@ -162,13 +182,13 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
-              editable={!loading && !googleLoading}
+              editable={!loading && !googleLoading && !appleLoading}
             />
 
             <TouchableOpacity accessibilityRole="button"
               style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleSignUp}
-              disabled={loading || googleLoading}
+              disabled={loading || googleLoading || appleLoading}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
@@ -183,10 +203,20 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
               <View style={styles.dividerLine} />
             </View>
 
+            {Platform.OS === 'ios' && appleAvailable && (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={6}
+                style={[styles.appleButton, appleLoading && styles.buttonDisabled]}
+                onPress={handleAppleSignIn}
+              />
+            )}
+
             <TouchableOpacity accessibilityRole="button"
               style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
               onPress={handleGoogleSignIn}
-              disabled={loading || googleLoading || !googleAvailable}
+              disabled={loading || googleLoading || appleLoading || !googleAvailable}
             >
               {googleLoading ? (
                 <ActivityIndicator color={theme.colors.text} />
@@ -202,7 +232,7 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }: SignUpScre
 
             <TouchableOpacity accessibilityRole="button"
               onPress={() => navigation.goBack()}
-              disabled={loading || googleLoading}
+              disabled={loading || googleLoading || appleLoading}
             >
               <Text style={styles.linkText}>
                 Already have an account? <Text style={styles.linkTextBold}>Sign in</Text>
@@ -344,6 +374,11 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     gap: 12,
+  },
+  appleButton: {
+    width: '100%',
+    height: 50,
+    marginBottom: 10,
   },
   googleButtonText: {
     color: theme.colors.text,

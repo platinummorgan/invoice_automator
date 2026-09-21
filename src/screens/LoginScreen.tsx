@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { authService } from '../services/auth';
 import { useTheme } from '../contexts/ThemeContext';
 import { GoogleIcon } from '../components/GoogleIcon';
@@ -30,9 +31,14 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleAvailable, setGoogleAvailable] = useState(true);
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(false);
 
   useEffect(() => {
     setGoogleAvailable(authService.isGoogleSignInAvailable());
+    authService.isAppleSignInAvailable().then(setAppleAvailable).catch(() => {
+      setAppleAvailable(false);
+    });
   }, []);
 
   const handleGoogleSignIn = async () => {
@@ -46,6 +52,20 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
       }
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    setAppleLoading(true);
+    try {
+      await authService.signInWithApple();
+      onLoginSuccess();
+    } catch (error: any) {
+      if (!/cancelled/i.test(error.message || '')) {
+        Alert.alert('Apple Sign-In Failed', error.message || 'Please try again');
+      }
+    } finally {
+      setAppleLoading(false);
     }
   };
 
@@ -100,7 +120,7 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
             keyboardType="email-address"
               autoCorrect={false}
               autoComplete="email"
-            editable={!loading && !googleLoading}
+            editable={!loading && !googleLoading && !appleLoading}
           />
 
           <Text style={styles.fieldLabel}>Password</Text>
@@ -112,12 +132,12 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
               value={password}
             onChangeText={setPassword}
             secureTextEntry
-            editable={!loading && !googleLoading}
+            editable={!loading && !googleLoading && !appleLoading}
           />
 
           <TouchableOpacity accessibilityRole="button"
             onPress={() => navigation.navigate('ForgotPassword')}
-            disabled={loading || googleLoading}
+            disabled={loading || googleLoading || appleLoading}
             style={styles.forgotPassword}
           >
             <Text style={styles.forgotPasswordText}>Forgot password?</Text>
@@ -126,7 +146,7 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
           <TouchableOpacity accessibilityRole="button"
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleLogin}
-            disabled={loading || googleLoading}
+            disabled={loading || googleLoading || appleLoading}
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
@@ -141,10 +161,20 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
             <View style={styles.dividerLine} />
           </View>
 
+          {Platform.OS === 'ios' && appleAvailable && (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+              cornerRadius={6}
+              style={[styles.appleButton, appleLoading && styles.buttonDisabled]}
+              onPress={handleAppleSignIn}
+            />
+          )}
+
           <TouchableOpacity accessibilityRole="button"
             style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
             onPress={handleGoogleSignIn}
-            disabled={loading || googleLoading || !googleAvailable}
+            disabled={loading || googleLoading || appleLoading || !googleAvailable}
           >
             {googleLoading ? (
               <ActivityIndicator color={theme.colors.text} />
@@ -160,7 +190,7 @@ export default function LoginScreen({ navigation, onLoginSuccess }: LoginScreenP
 
           <TouchableOpacity accessibilityRole="button"
             onPress={() => navigation.navigate('SignUp')}
-            disabled={loading || googleLoading}
+            disabled={loading || googleLoading || appleLoading}
           >
             <Text style={styles.linkText}>
               New here? <Text style={styles.linkTextBold}>Create an account</Text>
@@ -298,6 +328,11 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     gap: 12,
+  },
+  appleButton: {
+    width: '100%',
+    height: 50,
+    marginBottom: 10,
   },
   googleButtonText: {
     color: theme.colors.text,

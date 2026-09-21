@@ -167,12 +167,12 @@ export default function NewInvoiceScreen({ navigation, route }: NewInvoiceScreen
           const canCreate = await subscriptionService.canCreateInvoice();
           if (!canCreate.allowed) {
             Alert.alert(
-              'Upgrade Required',
+              Platform.OS === 'android' ? 'Upgrade Required' : 'Monthly Limit Reached',
               canCreate.reason || 'You have reached your free tier limit.',
               [
                 { text: 'Maybe Later', style: 'cancel', onPress: () => navigation.goBack() },
                 {
-                  text: 'Upgrade to Pro',
+                  text: Platform.OS === 'android' ? 'Upgrade to Pro' : 'View plan',
                   onPress: () => {
                     navigation.navigate('Main', {
                       screen: 'Settings',

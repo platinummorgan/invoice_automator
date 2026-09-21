@@ -11,7 +11,7 @@ const FAQ_ITEMS = [
   ['How do I change my invoice design?', 'Go to Settings, then Invoice design. Add a logo and choose your layout and colors. Preview your changes, then tap Save design. Logo uploads and removals are saved immediately.'],
   ['Where do I add payment instructions?', 'In Settings, under Getting paid, choose your payment methods and enter the details. Tap Save business details to include them on your invoices.'],
   ['What do the report totals mean?', 'Reports groups invoices by their invoice date. Paid shows the value of paid invoices; Outstanding shows unpaid issued invoices. These are not totals grouped by the date money reached your account.'],
-  ['What happens when I reach my free invoice limit?', 'Settings shows your current plan and remaining monthly allowance. Existing invoices remain accessible. Choose Upgrade to Pro for unlimited invoices; the store shows the price and terms before you confirm.'],
+  ['What happens when I reach my free invoice limit?', 'Settings shows your current plan and remaining monthly allowance. Existing invoices remain accessible. Pro upgrades are available through Google Play on Android; the first iPhone release uses the free plan.'],
 ];
 
 export default function HelpSupportScreen({ navigation }: { navigation: any }) {

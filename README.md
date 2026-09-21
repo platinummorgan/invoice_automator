@@ -1,10 +1,10 @@
 # Swift Invoice
 
-Android invoicing for small businesses, built with Expo, React Native, TypeScript and Supabase.
+Mobile quoting and invoicing for small businesses, built with Expo, React Native, TypeScript and Supabase.
 
 ## Release status
 
-See [Release status](RELEASE_STATUS.md) for the current store version, candidate build, database state, and remaining release checks. Version 1.2.2 is a release candidate, not a published Play update.
+See [Release status](RELEASE_STATUS.md) for the current store versions, candidate builds, database state, and remaining release checks. Version 1.3.0 is the next source release for the first iOS submission and a later Google Play update.
 
 ## Features
 
@@ -16,7 +16,7 @@ See [Release status](RELEASE_STATUS.md) for the current store version, candidate
 - Business-provided payment links and instructions; manual payment recording.
 - Explicit sent/paid/void status and reports.
 - Google Play Pro subscriptions verified by the backend, with restore and scheduled reconciliation.
-- Password recovery and a support-assisted account deletion request path.
+- Password recovery and permanent in-app account deletion.
 
 Payment links take customers to the business's provider. Swift Invoice does not automatically confirm those external payments. Notification and reminder source files are not evidence of an enabled end-to-end feature.
 
@@ -44,9 +44,14 @@ EAS controls Android version codes remotely; `app.json` supplies the user-facing
 
 GitHub releases remain drafts until the corresponding store rollout is ready. See [device checklist](TEST_BUILD_CHECKLIST.md) and [Play Console checks](PLAY_CONSOLE_RELEASE_CHECKS.md).
 
+## iOS App Store build
+
+Version 1.3.0 is configured for EAS-managed iOS credentials, Sign in with Apple, App Store Connect upload, and in-app account deletion. Follow [the first iOS submission guide](IOS_APP_STORE_SUBMISSION.md) on the Mac. The first iPhone release uses the free plan; Apple subscription billing is planned for a later release.
+
 ## Public support pages
 
 - [Privacy policy](https://platinummorgan.github.io/invoice_automator/privacy-policy.html)
+- [Support](https://platinummorgan.github.io/invoice_automator/support.html)
 - [Account and selected-data deletion requests](https://platinummorgan.github.io/invoice_automator/delete-account.html)
 
 Support: support@platovalabs.com
