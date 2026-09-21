@@ -62,13 +62,13 @@ Install the build through TestFlight and test on a physical iPhone:
 
 ## 4. Upload to App Store Connect
 
-After the tested production build finishes, upload the latest build:
+Build 28 has already been uploaded successfully through [EAS submission d2eb5ed2](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/submissions/d2eb5ed2-133c-4a84-9184-67a810d22e52). Use this command only for a replacement build:
 
 ```bash
 npx eas-cli@latest submit --platform ios --profile production --latest
 ```
 
-The submit profile targets App Store Connect app `6788092733`. Processing in App Store Connect can take several minutes. When the build appears, attach it to the `1.3.0` version.
+The submit profile targets App Store Connect app `6788092733`. Processing in App Store Connect can take several minutes. When build 28 appears, attach it to the `1.3.0` version.
 
 ## 5. App Store listing draft
 
