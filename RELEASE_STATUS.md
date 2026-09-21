@@ -15,7 +15,7 @@ Verified September 21, 2026. This document is the authoritative summary; older r
 | Previous candidate build 18 | Finished, superseded; not the final artifact |
 | GitHub release | 1.2.2 draft created; not marked published |
 | Play Data safety | Owner reports submitted for review; approval not verified |
-| Supabase | All five tracked migrations applied; document and billing function deployments verified |
+| Supabase | All five tracked migrations applied; document and billing function deployments verified; iOS Apple and Google callback authentication configured |
 
 Build 19 is now saved as a production draft and released to internal testing. A fresh track read confirmed production 15 remains completed, production 19 is draft, and internal 19 is completed. No public production rollout was started. The earlier build-18 upload was rolled back after a commit-parameter error.
 
@@ -70,7 +70,9 @@ Version 1.3.0 adds the iOS native configuration, Sign in with Apple, browser-bas
 
 [EAS submission](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/submissions/d2eb5ed2-133c-4a84-9184-67a810d22e52) finished successfully and uploaded build 28 to App Store Connect app `6788092733`.
 
-The remaining work must be completed with the Apple Developer/App Store Connect accounts: verify the Apple provider and callback in Supabase, wait for Apple processing, validate build 28 through TestFlight, finish App Privacy and listing metadata, and submit for review. See `IOS_APP_STORE_SUBMISSION.md`.
+Production Supabase project `dfqjfbtizqrzqujkvalx` now has Apple authentication enabled for client ID `com.invoiceautomator.app`. Google authentication remains enabled, and the exact iOS OAuth callback `com.invoiceautomator.app://auth/callback` was added to the redirect allow list. Both settings were read back after the update.
+
+The remaining work must be completed with the Apple Developer/App Store Connect accounts: verify the App ID capability, wait for Apple processing, validate build 28 through TestFlight, finish App Privacy and listing metadata, and submit for review. See `IOS_APP_STORE_SUBMISSION.md`.
 
 ## Branch scope
 

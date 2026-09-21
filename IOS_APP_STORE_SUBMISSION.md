@@ -29,15 +29,14 @@ npx eas-cli@latest env:list --environment production
 
 The production environment must contain `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
 
-## 2. Complete the one-time Apple and Supabase setup
+## 2. Verify the one-time Apple setup
 
 Use the same Apple Developer team for Apple Developer and App Store Connect.
 
 1. In Apple Developer → Certificates, Identifiers & Profiles → Identifiers, verify an explicit App ID for `com.invoiceautomator.app`. Enable **Sign in with Apple** for that identifier.
 2. In App Store Connect, open app `6788092733` and confirm its bundle ID is `com.invoiceautomator.app`. The bundle ID cannot be changed after the first build is uploaded.
-3. In Supabase Dashboard → Authentication → Providers → Apple, enable Apple and include `com.invoiceautomator.app` in Client IDs.
-4. In Supabase Dashboard → Authentication → URL Configuration, add `com.invoiceautomator.app://auth/callback` to the redirect allow list. Google sign-in on iPhone uses this callback.
-5. Confirm the deployed `delete-account` Edge Function is version 5 or newer. The current production deployment was already verified at version 5.
+3. Supabase production authentication is already configured: Apple is enabled with client ID `com.invoiceautomator.app`, Google is enabled, and `com.invoiceautomator.app://auth/callback` is in the redirect allow list. This was read back from project `dfqjfbtizqrzqujkvalx` after the update on September 21, 2026.
+4. The deployed `delete-account` Edge Function was already verified at version 5.
 
 EAS already produced successful App Store builds 23, 24, 26, and 27 for this bundle identifier, so the remote distribution certificate and provisioning profile are working. If EAS ever prompts again, sign in with the Apple account that has access to the same team and allow EAS to manage credentials.
 
@@ -49,7 +48,7 @@ Build 28 is already complete from commit `b861072f2344cf03d208bc2936fcb2c357a79c
 npm run build:ios
 ```
 
-Select the correct Apple team if prompted. EAS reads the user-facing version `1.3.0` from `app.json` and auto-increments the iOS build number remotely. The last verified remote number is 27, so the next build should be 28; use the number EAS reports as authoritative. Wait for the build to finish and keep the EAS build URL.
+Select the correct Apple team if prompted. EAS reads the user-facing version `1.3.0` from `app.json` and auto-increments the iOS build number remotely. Build 28 is the uploaded candidate, so a replacement should become build 29; use the number EAS reports as authoritative. Wait for the build to finish and keep the EAS build URL.
 
 Install the build through TestFlight and test on a physical iPhone:
 
