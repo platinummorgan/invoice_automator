@@ -4,7 +4,7 @@ Mobile quoting and invoicing for small businesses, built with Expo, React Native
 
 ## Release status
 
-See [Release status](RELEASE_STATUS.md) for the current store versions, candidate builds, database state, and remaining release checks. Version 1.3.0 is the next source release for the first iOS submission and a later Google Play update.
+See [Release status](RELEASE_STATUS.md) for the current store versions, build provenance, database state, and remaining release checks. Version 1.3.0 is submitted to Google Play production and uploaded to App Store Connect for the first iOS release.
 
 ## Features
 
