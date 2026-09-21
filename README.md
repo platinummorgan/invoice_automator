@@ -44,6 +44,8 @@ EAS controls Android version codes remotely; `app.json` supplies the user-facing
 
 GitHub releases remain drafts until the corresponding store rollout is ready. See [device checklist](TEST_BUILD_CHECKLIST.md) and [Play Console checks](PLAY_CONSOLE_RELEASE_CHECKS.md).
 
+Before the next Android store update, complete the [R8 and Android edge-to-edge upgrade plan](NEXT_ANDROID_RELEASE.md).
+
 ## iOS App Store build
 
 Version 1.3.0 is configured for EAS-managed iOS credentials, Sign in with Apple, App Store Connect upload, and in-app account deletion. Follow [the first iOS submission guide](IOS_APP_STORE_SUBMISSION.md) on the Mac. The first iPhone release uses the free plan; Apple subscription billing is planned for a later release.

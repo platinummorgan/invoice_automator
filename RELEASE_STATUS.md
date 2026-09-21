@@ -16,6 +16,7 @@ Verified September 21, 2026. This document is the authoritative summary; older r
 | GitHub | Version 1.3.0 source and release records are on `main`; 1.2.2 release remains a historical draft |
 | Play Data safety | Owner reports submitted for review; approval not verified |
 | Supabase | All five tracked migrations applied; document and billing function deployments verified; iOS Apple and Google callback authentication configured |
+| Next Android update | R8 optimization and Expo/React Native edge-to-edge upgrade required; plan documented |
 
 Build 19 was released to internal testing and later completed on production. It has now been superseded on production by version 1.3.0 (22). The earlier build-18 upload was rolled back after a commit-parameter error.
 
@@ -75,6 +76,7 @@ All five migrations match remote history. The seven billing/scheduler function b
 ## Post-release follow-up
 
 - Google accepted and validated production build 22. The production track reports `completed`; confirm storefront availability after propagation and review any Play Console policy or pre-launch findings.
+- Google Play reported 1% DEX obfuscation and deprecated Android 15 window/cutout API calls in framework dependencies. Build 22 is not blocked, but the next Android release must complete `NEXT_ANDROID_RELEASE.md` before store submission. The Play deadline shown for DEX optimization is February 2027.
 - Owner confirmed draft save/reopen, payment recording and sign-out/sign-in, then reported the final-build checks passed, including the requested PDF/payment-link and restore checks. Password reset was not separately confirmed.
 - Verify real Google test renewal and refund/revocation; local simulations alone do not close these checks.
 - Resolve Diagnostics sharing disclosure: current submitted answer is collected, not shared, non-ephemeral, required, analytics; the sharing exemption has not been confirmed.
