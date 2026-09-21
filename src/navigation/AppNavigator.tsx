@@ -1,3 +1,5 @@
+import MenuScreen from '../screens/MenuScreen';
+import DocumentsScreen from '../screens/DocumentsScreen';
 import AppIcon from '../components/AppIcon';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Text, View, ActivityIndicator, StyleSheet } from 'react-native';
@@ -67,6 +69,7 @@ function MainTabs() {
         },
       }}
     >
+      <Tab.Screen name="Menu" component={MenuScreen} options={{ title: 'Menu', headerShown: false, tabBarIcon: ({ color }) => <AppIcon name="invoice" color={color} /> }} />
       <Tab.Screen
         name="Dashboard"
         component={DashboardScreen}
@@ -208,6 +211,8 @@ export default function AppNavigator({ isAuthenticated, onLoginSuccess }: AppNav
               component={MainTabs}
               options={{ headerShown: false }}
             />
+            <Stack.Screen name="Quotes" component={DocumentsScreen} options={{ title: 'Quotes' }} />
+            <Stack.Screen name="Receipts" component={DocumentsScreen} options={{ title: 'Receipts' }} />
             <Stack.Screen
               name="NewInvoice"
               component={NewInvoiceScreen}

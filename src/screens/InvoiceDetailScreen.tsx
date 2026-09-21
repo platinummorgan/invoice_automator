@@ -1,6 +1,7 @@
+import JobPhotos from '../components/JobPhotos';
 import AppIcon from '../components/AppIcon';
 import { parseDisplayDate, calendarDate } from '../utils/invoiceValues';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { shareInvoicePdf } from '../services/invoicePdf';
 import {
@@ -109,6 +110,12 @@ export default function InvoiceDetailScreen({
   const { invoiceId } = route.params;
   const insets = useSafeAreaInsets();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const isQuote = invoice?.document_type === 'quote';
+  const documentLabel = isQuote ? 'Quote' : 'Invoice';
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [updatingJob, setUpdatingJob] = useState(false);
+  const paying = useRef(false);
+  useEffect(() => { navigation.setOptions({ title: documentLabel }); }, [navigation, documentLabel]);
   const [loading, setLoading] = useState(true);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [markingSent, setMarkingSent] = useState(false);
@@ -224,73 +231,44 @@ export default function InvoiceDetailScreen({
   };
 
   const handleMarkAsPaid = async () => {
-    if (!invoice) return;
+    if (!invoice || isQuote || paying.current) return;
+    Alert.alert('Record full payment', 'Confirm payment was received in full. A receipt email will open for you to send.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Mark as paid', onPress: async () => {
+        if (paying.current) return;
+        paying.current = true;
+        setSendingReceipt(true);
+        let recorded = false;
+        try {
+          await paymentService.recordManualPayment(invoice.id);
+          recorded = true;
+          const paidInvoice = await invoiceService.getInvoice(invoice.id);
+          setInvoice(paidInvoice);
+          if (!paidInvoice.customer?.email) {
+            Alert.alert('Payment saved', 'Your receipt is ready. Use Share receipt PDF to text or save it.');
+            return;
+          }
+          const result = await sendReceiptEmail({ invoice: paidInvoice, items: paidInvoice.items || [],
+            customer: paidInvoice.customer, paymentMethodLabel: 'Manual Payment', ...await getExportBranding() });
+          Alert.alert('Payment saved', result.success ? 'Receipt draft opened in your email app. Send it there to deliver it.' : 'Receipt was not sent. Use Email receipt or Share receipt PDF to try again.');
+        } catch (error: any) {
+          Alert.alert(recorded ? 'Payment saved; receipt unavailable' : 'Could not record payment', error.message);
+        } finally { paying.current = false; setSendingReceipt(false); }
+      } },
+    ]);
+  };
 
-    Alert.alert(
-      'Mark as Paid',
-      'Are you sure this invoice has been paid?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Mark as Paid',
-          style: 'default',
-          onPress: async () => {
-            try {
-              const payment = await paymentService.recordManualPayment(invoice.id);
-              const paidAt = payment.paid_at;
-
-              await loadInvoice();
-
-              const customer = invoice.customer;
-              if (!customer?.email) {
-                Alert.alert('Success', 'Invoice marked as paid.');
-                return;
-              }
-
-              Alert.alert('Paid', 'Invoice marked as paid. Email a receipt now?', [
-                { text: 'Not now', style: 'cancel' },
-                {
-                  text: 'Email Receipt',
-                  onPress: async () => {
-                    setSendingReceipt(true);
-                    try {
-                      const receiptResult = await sendReceiptEmail({
-                        invoice: { ...invoice, status: 'paid', paid_at: paidAt },
-                        items: invoice.items || [],
-                        customer,
-                        paidAt,
-                        paymentMethodLabel: 'Manual Payment',
-                        receiptReference: invoice.invoice_number,
-                        businessName,
-                        businessAddress: businessAddress || undefined,
-                        businessPhone: businessPhone || undefined,
-                        logoUrl: logoUrl || undefined,
-                        invoiceTemplate,
-                        templateSettings,
-                      });
-
-                      if (receiptResult.success) {
-                        Alert.alert('Receipt', 'Receipt draft opened in your email app.');
-                      } else if (receiptResult.status === 'cancelled') {
-                        // User backed out of the composer; nothing to do.
-                      } else {
-                        Alert.alert('Receipt Failed', receiptResult.error || 'Unable to open email app.');
-                      }
-                    } catch (error: any) {
-                      Alert.alert('Receipt Failed', error.message);
-                    } finally {
-                      setSendingReceipt(false);
-                    }
-                  },
-                },
-              ]);
-            } catch (error: any) {
-              Alert.alert('Error', error.message);
-            }
-          },
-        },
-      ]
-    );
+  const handleApproveQuote = () => {
+    if (!invoice || updatingJob) return;
+    Alert.alert('Approve quote and create invoice?', 'Confirm the customer approved this quote. All customer details, prices and pictures carry over. Review invoice dates before sending.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Approve & convert', onPress: async () => {
+        setUpdatingJob(true);
+        try { await invoiceService.approveQuote(invoice.id); await loadInvoice(); }
+        catch (error: any) { Alert.alert('Unable to convert quote', error.message); }
+        finally { setUpdatingJob(false); }
+      } },
+    ]);
   };
 
   const handleVoidInvoice = async () => {
@@ -333,8 +311,8 @@ export default function InvoiceDetailScreen({
     }
 
     Alert.alert(
-      'Send Invoice',
-      `Send invoice #${invoice.invoice_number} to ${invoice.customer.email}?`,
+      `Send ${documentLabel}`,
+      `Send ${documentLabel.toLowerCase()} #${invoice.invoice_number} to ${invoice.customer.email}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -342,17 +320,18 @@ export default function InvoiceDetailScreen({
           onPress: async () => {
             setSendingEmail(true);
             try {
+              const fresh = await invoiceService.getInvoice(invoice.id);
               const result = await sendInvoiceEmail({
-                invoice,
-                items: invoice.items || [],
-                customer: invoice.customer!,
+                invoice: fresh,
+                items: fresh.items || [],
+                customer: fresh.customer!,
                 ...await getExportBranding(),
               });
 
-              if (result.success) {
+              if (result.success && invoice.status === 'draft') {
                 Alert.alert(
                   'Email Draft Opened',
-                  'Your email app opened with the invoice draft. Mark this invoice as sent?',
+                  `Your email app opened with the ${documentLabel.toLowerCase()} draft. Mark it as sent?`,
                   [
                     { text: 'Not yet', style: 'cancel' },
                     {
@@ -368,7 +347,7 @@ export default function InvoiceDetailScreen({
                     },
                   ]
                 );
-              } else if (result.status === 'cancelled') {
+              } else if (result.success || result.status === 'cancelled') {
                 // User backed out of the composer; nothing to do.
               } else {
                 Alert.alert('Error', result.error || 'Unable to open email app.');
@@ -408,10 +387,11 @@ export default function InvoiceDetailScreen({
             setSendingReceipt(true);
             try {
               const latestPayment = await paymentService.getPaymentStatus(invoice.id);
+              const fresh = await invoiceService.getInvoice(invoice.id);
               const result = await sendReceiptEmail({
-                invoice,
-                items: invoice.items || [],
-                customer: invoice.customer!,
+                invoice: fresh,
+                items: fresh.items || [],
+                customer: fresh.customer!,
                 paidAt: latestPayment?.paid_at || invoice.paid_at,
                 paymentMethodLabel: 'Manual Payment',
                 receiptReference: invoice.invoice_number,
@@ -425,7 +405,7 @@ export default function InvoiceDetailScreen({
 
               if (result.success) {
                 Alert.alert('Receipt', 'Receipt draft opened in your email app.');
-              } else if (result.status === 'cancelled') {
+              } else if (result.success || result.status === 'cancelled') {
                 // User backed out of the composer; nothing to do.
               } else {
                 Alert.alert('Error', result.error || 'Unable to open email app.');
@@ -459,7 +439,7 @@ export default function InvoiceDetailScreen({
       case 'paid':
         return theme.colors.primary;
       case 'sent':
-        return invoice && invoice.due_date < calendarDate(new Date()) ? theme.colors.error : theme.colors.textSecondary;
+        return !isQuote && invoice && invoice.due_date < calendarDate(new Date()) ? theme.colors.error : theme.colors.textSecondary;
       case 'overdue':
         return theme.colors.error;
       case 'void':
@@ -472,13 +452,13 @@ export default function InvoiceDetailScreen({
   };
 
   const getStatusLabel = (status: string) => {
-    if (status === 'sent' && invoice && invoice.due_date < calendarDate(new Date())) return 'Overdue';
+    if (!isQuote && status === 'sent' && invoice && invoice.due_date < calendarDate(new Date())) return 'Overdue';
     return ({ draft: 'Draft', sent: 'Sent', paid: 'Paid', overdue: 'Overdue', void: 'Voided', cancelled: 'Cancelled' } as Record<string, string>)[status] || status;
   };
 
   const handleMarkSent = () => {
     if (!invoice || invoice.status !== 'draft' || markingSent) return;
-    Alert.alert('Mark invoice as sent?', 'Confirm you have sent this invoice to your customer. It will count as outstanding and can no longer be edited as a draft.', [
+    Alert.alert(`Mark ${documentLabel.toLowerCase()} as sent?`, isQuote ? 'Confirm you sent this quote. It can then be approved and converted to an invoice.' : 'Confirm you have sent this invoice to your customer. It will count as outstanding and can no longer be edited as a draft.', [
       { text: 'Not yet', style: 'cancel' },
       { text: 'Mark as sent', onPress: async () => {
         setMarkingSent(true);
@@ -489,14 +469,15 @@ export default function InvoiceDetailScreen({
     ]);
   };
 
-  const handleSharePdf = async () => {
+  const handleSharePdf = async (receipt = false) => {
     if (!invoice?.customer || sharingPdf) return;
     setSharingPdf(true);
     try {
+      const fresh = await invoiceService.getInvoice(invoice.id);
       await shareInvoicePdf({
-        invoice, items: invoice.items || [], customer: invoice.customer,
+        invoice: fresh, items: fresh.items || [], customer: fresh.customer!,
         ...await getExportBranding(),
-      });
+      }, receipt);
     } catch (error: any) {
       Alert.alert('Unable to share PDF', error.message);
     } finally {
@@ -546,7 +527,7 @@ export default function InvoiceDetailScreen({
               <Text style={styles.headerMetaValue}>{formatDate(invoice.issue_date)}</Text>
             </View>
             <View style={styles.headerMetaItem}>
-              <Text style={styles.headerMetaLabel}>Due</Text>
+              <Text style={styles.headerMetaLabel}>{isQuote ? 'Valid until' : 'Due'}</Text>
               <Text style={styles.headerMetaValue}>{formatDate(invoice.due_date)}</Text>
             </View>
             <View style={styles.headerMetaItem}>
@@ -643,6 +624,24 @@ export default function InvoiceDetailScreen({
           </View>
         </View>
 
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{documentLabel}{invoice.quote_number ? ` · Approved from ${invoice.quote_number}` : ''}</Text>
+          {invoice.completed_at && <Text style={styles.notesText}>Job completed {formatDate(invoice.completed_at)}</Text>}
+          <JobPhotos photos={invoice.photos || []} finished={!isQuote} onBusyChange={setPhotoBusy} disabled={updatingJob || photoBusy}
+            onChange={['void', 'cancelled'].includes(invoice.status) ? undefined : async photos => {
+              await invoiceService.updateJob(invoice.id, photos);
+              await loadInvoice();
+            }} />
+          {isQuote && ['draft', 'sent'].includes(invoice.status) && <TouchableOpacity accessibilityRole="button" style={styles.previewButton} disabled={updatingJob || photoBusy} onPress={handleApproveQuote}>
+            <Text style={styles.previewButtonText}>{updatingJob ? 'Converting…' : 'Approve quote & create invoice'}</Text>
+          </TouchableOpacity>}
+          {!isQuote && !invoice.completed_at && !['void', 'cancelled'].includes(invoice.status) && <TouchableOpacity accessibilityRole="button" style={styles.previewButton} disabled={updatingJob || photoBusy} onPress={async () => {
+            setUpdatingJob(true);
+            try { await invoiceService.updateJob(invoice.id, invoice.photos, true); await loadInvoice(); }
+            catch (error: any) { Alert.alert('Could not complete job', error.message); }
+            finally { setUpdatingJob(false); }
+          }}><Text style={styles.previewButtonText}>Mark job completed</Text></TouchableOpacity>}
+        </View>
         {/* Notes */}
         {templateSettings.show_notes && invoice.notes && (
           <View style={styles.section}>
@@ -654,15 +653,15 @@ export default function InvoiceDetailScreen({
         {invoice.status === 'draft' && (
           <View style={styles.actionRow}>
             <TouchableOpacity accessibilityRole="button" style={styles.previewButton}
-              onPress={() => navigation.navigate('NewInvoice', { invoiceId: invoice.id })}>
+              onPress={() => navigation.navigate('NewInvoice', { invoiceId: invoice.id, documentType: invoice.document_type })}>
               <Text style={styles.previewButtonText}>Edit draft</Text>
             </TouchableOpacity>
           </View>
         )}
         {invoice.status !== 'void' && invoice.status !== 'cancelled' && (
           <View style={styles.actionRow}>
-            <TouchableOpacity accessibilityRole="button" style={styles.previewButton} disabled={sharingPdf}
-              onPress={handleSharePdf}>
+            <TouchableOpacity accessibilityRole="button" style={styles.previewButton} disabled={sharingPdf || photoBusy}
+              onPress={() => handleSharePdf()}>
               <Text style={styles.previewButtonText}>{sharingPdf ? 'Preparing PDF…' : 'Share / save PDF'}</Text>
             </TouchableOpacity>
           </View>
@@ -674,13 +673,18 @@ export default function InvoiceDetailScreen({
           </TouchableOpacity>
         </View>}
 
+        {invoice.status === 'paid' && <View style={styles.actionRow}>
+          <TouchableOpacity accessibilityRole="button" style={styles.previewButton} disabled={sharingPdf || photoBusy} onPress={() => handleSharePdf(true)}>
+            <Text style={styles.previewButtonText}>{sharingPdf ? 'Preparing…' : 'Share receipt PDF / text'}</Text>
+          </TouchableOpacity>
+        </View>}
         {/* Receipt Actions */}
         {invoice.status === 'paid' && (
           <View style={styles.actionRow}>
             <TouchableOpacity
               style={[styles.receiptButton, sendingReceipt && styles.buttonDisabled]}
               onPress={handleSendReceipt}
-              disabled={sendingReceipt}
+              disabled={sendingReceipt || photoBusy}
             >
               {sendingReceipt ? (
                 <ActivityIndicator color="#fff" />
@@ -691,9 +695,9 @@ export default function InvoiceDetailScreen({
           </View>
         )}
 
-        {!['paid', 'void', 'cancelled'].includes(invoice.status) && (
+        {!isQuote && !['paid', 'void', 'cancelled'].includes(invoice.status) && (
           <View style={styles.actionRow}>
-            <TouchableOpacity accessibilityRole="button" style={styles.previewButton} onPress={handleMarkAsPaid}>
+            <TouchableOpacity accessibilityRole="button" style={styles.previewButton} disabled={sendingReceipt || photoBusy} onPress={handleMarkAsPaid}>
               <Text style={styles.previewButtonText}>Record full payment</Text>
             </TouchableOpacity>
             <TouchableOpacity accessibilityRole="button" style={styles.previewButton} onPress={handleVoidInvoice}>
@@ -759,7 +763,7 @@ export default function InvoiceDetailScreen({
                       ) : null}
                     </View>
                   </View>
-                  <Text style={styles.previewInvoiceNumber}>{invoice.invoice_number}</Text>
+                  <Text style={styles.previewInvoiceNumber}>{documentLabel} {invoice.invoice_number}</Text>
                 </View>
               ) : (
                 <>
@@ -775,14 +779,14 @@ export default function InvoiceDetailScreen({
                   {templateSettings.show_business_contact && businessAddress ? (
                     <Text style={styles.previewBusinessDetail}>{businessAddress}</Text>
                   ) : null}
-                  <Text style={styles.previewInvoiceNumber}>{invoice.invoice_number}</Text>
+                  <Text style={styles.previewInvoiceNumber}>{documentLabel} {invoice.invoice_number}</Text>
                 </>
               )}
             </View>
 
             {/* Customer Info */}
             <View style={styles.previewSection}>
-              <Text style={[styles.previewSectionTitle, { color: previewPalette.sectionLabel }]}>Bill To:</Text>
+              <Text style={[styles.previewSectionTitle, { color: previewPalette.sectionLabel }]}>{isQuote ? 'Prepared for:' : 'Bill To:'}</Text>
               <Text style={styles.previewCustomerName}>{invoice.customer?.name}</Text>
               {invoice.customer?.email && (
                 <Text style={styles.previewCustomerDetail}>{invoice.customer.email}</Text>
@@ -802,7 +806,7 @@ export default function InvoiceDetailScreen({
                 <Text style={styles.previewDateValue}>{formatDate(invoice.issue_date)}</Text>
               </View>
               <View style={styles.previewDateRow}>
-                <Text style={styles.previewDateLabel}>Due Date:</Text>
+                <Text style={styles.previewDateLabel}>{isQuote ? 'Valid until:' : 'Due Date:'}</Text>
                 <Text style={styles.previewDateValue}>{formatDate(invoice.due_date)}</Text>
               </View>
             </View>
@@ -852,7 +856,7 @@ export default function InvoiceDetailScreen({
               </View>
             </View>
 
-            {/* Notes */}
+                    {/* Notes */}
             {templateSettings.show_notes && invoice.notes && (
               <View style={styles.previewSection}>
                 <Text style={[styles.previewSectionTitle, { color: previewPalette.sectionLabel }]}>Notes:</Text>
@@ -861,7 +865,8 @@ export default function InvoiceDetailScreen({
             )}
 
             {/* Payment Instructions */}
-            {paymentInstructions && (
+            <JobPhotos photos={invoice.photos || []} finished={!isQuote} />
+            {!isQuote && paymentInstructions && (
               <View style={styles.previewSection}>
                 <Text style={[styles.previewSectionTitle, { color: previewPalette.sectionLabel }]}>Payment Methods:</Text>
                 <View style={styles.paymentInstructionsBox}>
@@ -872,12 +877,12 @@ export default function InvoiceDetailScreen({
           </ScrollView>
 
           <View style={[styles.previewActions, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-            {invoice.customer?.email ? <TouchableOpacity accessibilityRole="button" style={styles.previewButton} disabled={sendingEmail}
+            {invoice.customer?.email ? <TouchableOpacity accessibilityRole="button" style={styles.previewButton} disabled={sendingEmail || photoBusy}
               onPress={() => { setShowPreviewModal(false); handleSendEmail(); }}>
               <Text style={styles.previewButtonText}>{sendingEmail ? 'Opening email…' : 'Open email draft'}</Text>
             </TouchableOpacity> : null}
             <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: sharingPdf, busy: sharingPdf }}
-              style={[styles.sendEmailButton, { flex: 0 }, sharingPdf && styles.buttonDisabled]} onPress={handleSharePdf} disabled={sharingPdf}>
+              style={[styles.sendEmailButton, { flex: 0 }, sharingPdf && styles.buttonDisabled]} onPress={() => handleSharePdf()} disabled={sharingPdf || photoBusy}>
               {sharingPdf ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.sendEmailButtonText}>Share / save PDF</Text>}
             </TouchableOpacity>
           </View>

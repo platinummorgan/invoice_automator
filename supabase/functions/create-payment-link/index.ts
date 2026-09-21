@@ -88,6 +88,10 @@ serve(async (req: Request) => {
       );
     }
 
+    if (invoice.document_type === 'quote' || ['paid', 'void', 'cancelled'].includes(invoice.status)) {
+      return new Response(JSON.stringify({ error: 'This document cannot accept payment' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     // Create Stripe payment link
     const paymentLink = await stripe.paymentLinks.create({
       line_items: [

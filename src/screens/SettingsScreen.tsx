@@ -1,7 +1,7 @@
 import AppIcon from '../components/AppIcon';
 import { preparePaymentMethods } from '../utils/paymentMethods';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -44,6 +44,7 @@ import {
 
 interface SettingsScreenProps {
   navigation: any;
+  route: any;
 }
 
 const LOGO_BUCKET = 'logos';
@@ -99,7 +100,7 @@ const PAYMENT_METHOD_OPTIONS: Array<{
   { type: 'other', label: 'Other', placeholder: 'Custom payment link or instructions' },
 ];
 
-export default function SettingsScreen({ navigation }: SettingsScreenProps) {
+export default function SettingsScreen({ navigation, route }: SettingsScreenProps) {
   const { theme, themeMode, setThemeMode } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [loading, setLoading] = useState(true);
@@ -127,6 +128,16 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [showTerms, setShowTerms] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const [planSectionY, setPlanSectionY] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!route.params?.focusPlan || loading || planSectionY === null) return;
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: Math.max(0, planSectionY - 16), animated: true });
+      navigation.setParams({ focusPlan: undefined });
+    });
+  }, [loading, navigation, planSectionY, route.params?.focusPlan]);
 
   useEffect(() => {
     loadProfile();
@@ -539,7 +550,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   </View>;
 
   return <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.top + 44}>
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.section}>
         <Text style={styles.heading}>Business details</Text>
         <Text style={styles.description}>The details your customers see on your invoices.</Text>
@@ -596,7 +607,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           </TouchableOpacity>)}
         </View>
       </View>
-      <View style={styles.section}>
+      <View style={styles.section} onLayout={event => setPlanSectionY(event.nativeEvent.layout.y)}>
         <Text style={styles.heading}>Your plan</Text>
         {Platform.OS === 'android' && link('Manage subscription in Google Play', handleManageSubscription)}
         {Platform.OS === 'android' && <TouchableOpacity accessibilityRole="button" disabled={restoring || upgrading} style={styles.link} onPress={handleRestore}>

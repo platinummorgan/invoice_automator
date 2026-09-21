@@ -1,3 +1,4 @@
+import * as Print from 'expo-print';
 import { parseDisplayDate, calendarDate } from '../utils/invoiceValues';
 import { paymentMethodUrl } from '../utils/paymentMethods';
 import { resolveTemplateSettings } from './templateSettings';
@@ -146,6 +147,7 @@ async function openDeviceEmailComposer({
         subject,
         body: html,
         isHtml: true,
+        attachments: [(await Print.printToFileAsync({ html })).uri],
       });
 
       const status = (result?.status || 'undetermined') as DeviceEmailStatus;
@@ -222,7 +224,7 @@ export async function sendInvoiceEmail({
 
     return await openDeviceEmailComposer({
       to: customer.email,
-      subject: `Invoice #${invoice.invoice_number} - Payment Requested`,
+      subject: invoice.document_type === 'quote' ? `Quote #${invoice.invoice_number} - For Approval` : `Invoice #${invoice.invoice_number} - Payment Requested`,
       html: emailHtml,
     });
   } catch (error: any) {
@@ -257,6 +259,7 @@ export async function sendReceiptEmail({
       throw new Error('Customer email is required to send receipt.');
     }
 
+    if (invoice.status !== 'paid' || invoice.document_type === 'quote') throw new Error('Receipts require a paid invoice.');
     const emailHtml = generateReceiptEmailHTML({
       invoice,
       items,
@@ -304,6 +307,9 @@ export function generateInvoiceEmailHTML({
   invoiceTemplate,
   templateSettings,
 }: SendInvoiceEmailParams): string {
+  const isQuote = invoice.document_type === 'quote';
+  const documentLabel = isQuote ? 'Quote' : 'Invoice';
+  if (isQuote) { paymentLink = undefined; paymentMethods = []; paymentInstructions = undefined; }
   const resolvedTemplateSettings = resolveTemplateSettings(templateSettings, invoiceTemplate);
   const colors = getTemplateColors(invoiceTemplate, resolvedTemplateSettings.accent_color);
   const displayBusinessName = businessName || 'Swift Invoice';
@@ -381,14 +387,14 @@ export function generateInvoiceEmailHTML({
             ${businessContactHtml}
           </div>
         </div>
-        <p style="margin: 0; font-size: 18px; color: #1f2937; font-weight: 600;">#${safeInvoiceNumber}</p>
+        <p style="margin: 0; font-size: 18px; color: #1f2937; font-weight: 600;">${documentLabel} #${safeInvoiceNumber}</p>
       </div>
     `
       : `
       ${resolvedTemplateSettings.show_logo && safeLogoUrl ? `<img src="${safeLogoUrl}" alt="Business logo" style="max-width: 220px; max-height: 70px; width: auto; height: auto; margin: 0 auto 12px auto; display: block;" />` : ''}
       <h1 style="margin: 0; font-size: 26px; color: ${colors.accent};">${safeDisplayBusinessName}</h1>
       ${businessContactHtml}
-      <p style="margin: 10px 0 0 0; font-size: 18px; color: #1f2937; font-weight: 600;">Invoice #${safeInvoiceNumber}</p>
+      <p style="margin: 10px 0 0 0; font-size: 18px; color: #1f2937; font-weight: 600;">${documentLabel} #${safeInvoiceNumber}</p>
     `;
 
   return `
@@ -397,7 +403,7 @@ export function generateInvoiceEmailHTML({
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Invoice #${safeInvoiceNumber}</title>
+  <title>${documentLabel} #${safeInvoiceNumber}</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -422,7 +428,7 @@ export function generateInvoiceEmailHTML({
           <p style="margin: 0; font-size: 16px; color: #1f2937;">${formatDate(invoice.issue_date)}</p>
         </div>
         <div style="text-align: right;">
-          <p style="margin: 0 0 5px 0; font-size: 14px; color: ${colors.textMuted};">Due Date</p>
+          <p style="margin: 0 0 5px 0; font-size: 14px; color: ${colors.textMuted};">${isQuote ? 'Valid Until' : 'Due Date'}</p>
           <p style="margin: 0; font-size: 16px; color: #1f2937;">${formatDate(invoice.due_date)}</p>
         </div>
       </div>
@@ -453,7 +459,7 @@ export function generateInvoiceEmailHTML({
           <span style="font-size: 14px; color: #1f2937;">${formatCurrency(invoice.tax_amount)}</span>
         </div>
         <div style="display: flex; justify-content: space-between; padding: 12px 0; background-color: ${colors.accentLight}; margin: 10px -15px 0 -15px; padding-left: 15px; padding-right: 15px;">
-          <span style="font-size: 18px; font-weight: 700; color: #1f2937;">Total Due</span>
+          <span style="font-size: 18px; font-weight: 700; color: #1f2937;">${isQuote ? 'Quoted Total' : 'Total Due'}</span>
           <span style="font-size: 18px; font-weight: 700; color: ${resolvedTemplateSettings.highlight_totals ? colors.accent : '#1f2937'};">${formatCurrency(invoice.total)}</span>
         </div>
       </div>
@@ -466,6 +472,8 @@ export function generateInvoiceEmailHTML({
       ` : ''}
     </div>
 
+    ${photoHtml(invoice)}
+    ${isQuote ? '<p style="padding: 20px; text-align: center;">Quote for approval. No payment is due until invoiced.</p>' : `
     <!-- Payment Section -->
     <div style="background-color: #ffffff; padding: 30px; border-radius: 0 0 8px 8px; text-align: center;">
       ${safePaymentLink ? `
@@ -505,6 +513,7 @@ export function generateInvoiceEmailHTML({
       ` : ''}
     </div>
 
+    `}
     <!-- Footer -->
     <div style="margin-top: 20px; text-align: center; padding: 20px;">
       <p style="margin: 0; font-size: 12px; color: #9ca3af;">${safeFooterText}</p>
@@ -519,7 +528,7 @@ export function generateInvoiceEmailHTML({
 /**
  * Generate HTML email template for payment receipt
  */
-function generateReceiptEmailHTML({
+export function generateReceiptEmailHTML({
   invoice,
   items,
   customer,
@@ -687,6 +696,7 @@ function generateReceiptEmailHTML({
         </div>
       </div>
 
+      ${photoHtml(invoice)}
       <div style="margin-top: 24px; padding: 14px; background-color: ${colors.accentLight}; border-radius: 6px;">
         <p style="margin: 0 0 6px 0; font-size: 13px; color: ${colors.textMuted}; font-weight: 600;">Payment Details</p>
         <p style="margin: 0; font-size: 14px; color: #1f2937;">Method: ${safePaymentMethodLabel}</p>
@@ -709,4 +719,12 @@ function generateReceiptEmailHTML({
 </body>
 </html>
   `;
+}
+
+function photoHtml(invoice: Invoice): string {
+  return (['before', 'finished'] as const).map(stage => {
+    const photos = (invoice.photos || []).filter(photo => photo.stage === stage && safeHttpUrl(photo.url));
+    if (!photos.length) return '';
+    return `<div style="padding: 20px; background: white;"><h3>${stage === 'before' ? 'Job / before pictures' : 'Finished pictures'}</h3>${photos.map(photo => `<div style="break-inside: avoid; margin-bottom: 12px;"><img src="${safeHttpUrl(photo.url)}" alt="${stage} job picture" style="max-width: 100%; max-height: 360px;" /></div>`).join('')}</div>`;
+  }).join('');
 }

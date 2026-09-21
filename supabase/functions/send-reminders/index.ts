@@ -21,7 +21,7 @@ serve(async (req) => {
 
     // Get overdue invoices that need reminders
     const overdueResponse = await fetch(
-      `${supabaseUrl}/rest/v1/invoices?status=in.(sent,overdue)&select=*,customer:customers(*),profile:profiles(*)`,
+      `${supabaseUrl}/rest/v1/invoices?document_type=eq.invoice&status=in.(sent,overdue)&select=*,customer:customers(*),profile:profiles(*)`,
       {
         headers: {
           'apikey': supabaseKey,

@@ -9,14 +9,18 @@ See [Release status](RELEASE_STATUS.md) for the current store version, candidate
 ## Features
 
 - Customer records and optional contact import.
-- Recoverable invoice drafts, line items, taxes, due dates and notes.
-- Invoice branding, PDF preview/share, device email drafts and receipt emails.
+- Recoverable quote and invoice drafts, line items, taxes, dates and notes.
+- Quote approval and conversion into an invoice without re-entering the job.
+- Before/finished job pictures in documents, PDFs and receipt emails.
+- Invoice branding, PDF preview/share, device email drafts and paid receipt emails.
 - Business-provided payment links and instructions; manual payment recording.
 - Explicit sent/paid/void status and reports.
 - Google Play Pro subscriptions verified by the backend, with restore and scheduled reconciliation.
 - Password recovery and a support-assisted account deletion request path.
 
 Payment links take customers to the business's provider. Swift Invoice does not automatically confirm those external payments. Notification and reminder source files are not evidence of an enabled end-to-end feature.
+
+See [Quote, invoice and receipt workflow](DOCUMENT_WORKFLOW.md) for the new menu, conversion, job pictures and required migration.
 
 ## Development
 

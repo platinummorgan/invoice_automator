@@ -76,7 +76,18 @@ export interface InvoiceItem {
   created_at: string;
 }
 
+export interface JobPhoto {
+  path: string;
+  stage: 'before' | 'finished';
+  url?: string;
+}
+
 export interface Invoice {
+  document_type?: 'quote' | 'invoice';
+  quote_number?: string;
+  approved_at?: string;
+  completed_at?: string;
+  photos?: JobPhoto[];
   id: string;
   user_id: string;
   customer_id?: string;
@@ -119,6 +130,8 @@ export interface PaymentRecord {
 }
 
 export interface InvoiceFormData {
+  document_type?: 'quote' | 'invoice';
+  photos?: JobPhoto[];
   customer_id?: string;
   customer_name?: string;
   customer_email?: string;

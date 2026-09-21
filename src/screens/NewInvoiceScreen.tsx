@@ -1,3 +1,6 @@
+import JobPhotos from '../components/JobPhotos';
+import { resolvePhotos } from '../services/jobPhotos';
+import { JobPhoto } from '../types';
 import AppIcon from '../components/AppIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -47,6 +50,9 @@ export default function NewInvoiceScreen({ navigation, route }: NewInvoiceScreen
   const stackFields = width < 360 || fontScale > 1.2;
   const styles = useMemo(() => createStyles(theme), [theme]);
   const invoiceId: string | undefined = route.params?.invoiceId;
+  const documentType: 'quote' | 'invoice' = route.params?.documentType || 'invoice';
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photos, setPhotos] = useState<JobPhoto[]>([]);
   const requestId = useRef(Crypto.randomUUID());
   const draftKey = useRef<string | null>(null);
   const writes = useRef(Promise.resolve());
@@ -79,8 +85,8 @@ export default function NewInvoiceScreen({ navigation, route }: NewInvoiceScreen
   }, [customers, customerSearch]);
 
   useEffect(() => {
-    navigation.setOptions({ title: invoiceId ? 'Edit draft' : 'New invoice' });
-  }, [navigation, invoiceId]);
+    navigation.setOptions({ title: invoiceId ? 'Edit draft' : documentType === 'quote' ? 'New quote' : 'New invoice' });
+  }, [navigation, invoiceId, documentType]);
 
   const calculateDueDate = () => {
     const days = paymentTerms(daysUntilDue) ?? 30;
@@ -95,13 +101,14 @@ export default function NewInvoiceScreen({ navigation, route }: NewInvoiceScreen
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Please sign in again.');
-        draftKey.current = `invoice-draft:v1:${user.id}:${invoiceId || 'new'}`;
+        draftKey.current = `invoice-draft:v1:${user.id}:${invoiceId || (documentType === 'quote' ? 'new-quote' : 'new')}`;
         const stored = await AsyncStorage.getItem(draftKey.current);
         if (!active) return;
         if (stored) {
           const draft = JSON.parse(stored);
           if (draft.version !== 1 || !Array.isArray(draft.items)) throw new Error('Saved draft could not be read.');
           requestId.current = draft.requestId;
+          setPhotos(await resolvePhotos(draft.photos || []));
           setSelectedCustomer(draft.selectedCustomer);
           setNewCustomerName(draft.newCustomerName);
           setNewCustomerEmail(draft.newCustomerEmail);
@@ -114,6 +121,7 @@ export default function NewInvoiceScreen({ navigation, route }: NewInvoiceScreen
           const invoice = await invoiceService.getInvoice(invoiceId);
           if (!active) return;
           if (invoice.status !== 'draft') throw new Error('Only drafts can be edited.');
+          setPhotos(invoice.photos || []);
           setSelectedCustomer(invoice.customer || null);
           setNewCustomerName(invoice.customer_name || '');
           setNewCustomerEmail(invoice.customer?.email || '');
@@ -132,14 +140,14 @@ export default function NewInvoiceScreen({ navigation, route }: NewInvoiceScreen
     };
     restore(); loadCustomers();
     return () => { active = false; };
-  }, [invoiceId]);
+  }, [invoiceId, documentType]);
 
   useEffect(() => {
     if (!ready || !draftKey.current || savingRef.current) return;
     const key = draftKey.current;
     const draft = JSON.stringify({ version: 1, requestId: requestId.current, selectedCustomer,
       newCustomerName, newCustomerEmail, newCustomerPhone, issueDate: issueDate.toISOString(),
-      daysUntilDue, taxRate, notes, items });
+      daysUntilDue, taxRate, notes, items, photos: photos.map(({ path, stage }) => ({ path, stage })) });
     const version = ++draftWriteVersion.current;
     setDraftState('saving');
     // Serialize writes so a slower old write cannot overwrite a newer form.
@@ -148,7 +156,7 @@ export default function NewInvoiceScreen({ navigation, route }: NewInvoiceScreen
     }).catch(() => {
       if (version === draftWriteVersion.current) setDraftState('error');
     });
-  }, [ready, selectedCustomer, newCustomerName, newCustomerEmail, newCustomerPhone, issueDate, daysUntilDue, taxRate, notes, items]);
+  }, [ready, selectedCustomer, newCustomerName, newCustomerEmail, newCustomerPhone, issueDate, daysUntilDue, taxRate, notes, items, photos]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -166,8 +174,10 @@ export default function NewInvoiceScreen({ navigation, route }: NewInvoiceScreen
                 {
                   text: 'Upgrade to Pro',
                   onPress: () => {
-                    navigation.goBack();
-                    navigation.navigate('Settings');
+                    navigation.navigate('Main', {
+                      screen: 'Settings',
+                      params: { focusPlan: true },
+                    });
                   },
                 },
               ]
@@ -254,10 +264,11 @@ export default function NewInvoiceScreen({ navigation, route }: NewInvoiceScreen
     if (paymentTerms(daysUntilDue) === null || !validDecimal(taxRate) || Number(taxRate) < 0 || Number(taxRate) > 100) {
       Alert.alert('Check terms', 'Enter 0–3650 days and a tax rate between 0 and 100 with at most two decimal places.'); return;
     }
-    if (savingRef.current) return;
+    if (savingRef.current || photoBusy) return;
     savingRef.current = true; setLoading(true);
     try {
       const invoice = await invoiceService.createInvoice({
+        document_type: documentType, photos: photos.map(({ path, stage }) => ({ path, stage })),
         customer_id: selectedCustomer?.id,
         customer_name: selectedCustomer?.name || newCustomerName.trim(),
         customer_email: customerEmail,
@@ -353,8 +364,8 @@ export default function NewInvoiceScreen({ navigation, route }: NewInvoiceScreen
         </View>
 
         <View style={styles.section}>
-          <Text accessibilityRole="header" style={styles.sectionTitle}>Payment terms</Text>
-          <Text style={styles.label}>Invoice date</Text>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>{documentType === 'quote' ? 'Quote valid for' : 'Payment terms'}</Text>
+          <Text style={styles.label}>{documentType === 'quote' ? 'Quote date' : 'Invoice date'}</Text>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Change invoice date, ${issueDate.toLocaleDateString()}`} style={styles.dateButton} onPress={() => setShowDatePicker(true)}>
             <Text style={styles.detail}>{issueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
             <AppIcon name="down" color={theme.colors.textSecondary} size={18} />
@@ -365,16 +376,16 @@ export default function NewInvoiceScreen({ navigation, route }: NewInvoiceScreen
             }} />
             {Platform.OS === 'ios' && <TouchableOpacity accessibilityRole="button" style={styles.textButton} onPress={() => setShowDatePicker(false)}><Text style={styles.link}>Done</Text></TouchableOpacity>}
           </View>}
-          <Text style={styles.label}>Payment due</Text>
+          <Text style={styles.label}>{documentType === 'quote' ? 'Quote expires' : 'Payment due'}</Text>
           <View style={styles.terms}>
-            {[['0', 'Due now'], ['7', '7 days'], ['15', '15 days'], ['30', '30 days'], ['60', '60 days']].map(([value, label]) => <TouchableOpacity key={value}
+            {[['0', documentType === 'quote' ? 'Today' : 'Due now'], ['7', '7 days'], ['15', '15 days'], ['30', '30 days'], ['60', '60 days']].map(([value, label]) => <TouchableOpacity key={value}
               accessibilityRole="radio" accessibilityState={{ checked: daysUntilDue === value }} style={[styles.term, daysUntilDue === value && styles.termActive]} onPress={() => setDaysUntilDue(value)}>
               <Text style={[styles.termLabel, daysUntilDue === value && styles.termLabelActive]}>{label}</Text>
             </TouchableOpacity>)}
           </View>
           <View style={[styles.fieldRow, stackFields && styles.stacked]}>
             <View style={[styles.field, stackFields && styles.fullWidth]}>
-              <Text style={styles.label}>Days until due</Text>
+              <Text style={styles.label}>{documentType === 'quote' ? 'Days valid' : 'Days until due'}</Text>
               <TextInput accessibilityLabel="Days until due, zero means due now" style={styles.input} value={daysUntilDue} selectTextOnFocus onChangeText={setDaysUntilDue} keyboardType="number-pad" />
             </View>
             <View style={[styles.field, stackFields && styles.fullWidth]}>
@@ -382,10 +393,11 @@ export default function NewInvoiceScreen({ navigation, route }: NewInvoiceScreen
               <TextInput accessibilityLabel="Tax rate, percent" style={styles.input} value={taxRate} selectTextOnFocus onChangeText={setTaxRate} keyboardType="decimal-pad" />
             </View>
           </View>
-          <Text style={styles.small}>{paymentTerms(daysUntilDue) === null ? 'Enter a whole number of days between 0 and 3650.' : `Due ${calculateDueDate().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`}</Text>
+          <Text style={styles.small}>{paymentTerms(daysUntilDue) === null ? 'Enter a whole number of days between 0 and 3650.' : `${documentType === 'quote' ? 'Valid until' : 'Due'} ${calculateDueDate().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`}</Text>
         </View>
 
         <View style={styles.section}>
+          <JobPhotos photos={photos} onChange={setPhotos} onBusyChange={setPhotoBusy} finished={documentType !== 'quote'} disabled={loading || photoBusy} />
           <Text style={styles.label}>Notes <Text style={styles.optional}>· optional</Text></Text>
           <TextInput accessibilityLabel="Invoice notes, optional" style={[styles.input, styles.notes]} multiline placeholder="Details for your customer" placeholderTextColor={theme.colors.placeholder}
             value={notes} onChangeText={setNotes} />
@@ -398,8 +410,8 @@ export default function NewInvoiceScreen({ navigation, route }: NewInvoiceScreen
         <Text style={styles.saveNote}>Saving a draft does not send it to your customer.</Text>
       </ScrollView>
       <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, 12) }, stackFields && styles.stacked]}>
-        <TouchableOpacity accessibilityRole="button" style={styles.closeButton} onPress={() => navigation.goBack()} disabled={loading}><Text style={styles.link}>Close</Text></TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: loading, busy: loading }} style={[styles.saveButton, loading && styles.disabled, stackFields && styles.fullWidth]} onPress={handleSave} disabled={loading}>
+        <TouchableOpacity accessibilityRole="button" style={styles.closeButton} onPress={() => navigation.goBack()} disabled={loading || photoBusy}><Text style={styles.link}>Close</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: loading, busy: loading }} style={[styles.saveButton, loading && styles.disabled, stackFields && styles.fullWidth]} onPress={handleSave} disabled={loading || photoBusy}>
           {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveLabel}>{invoiceId ? 'Save changes' : 'Save draft'}</Text>}
         </TouchableOpacity>
       </View>

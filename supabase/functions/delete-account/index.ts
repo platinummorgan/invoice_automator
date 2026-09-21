@@ -57,6 +57,27 @@ serve(async (req: Request) => {
       Authorization: `Bearer ${supabaseServiceRoleKey}`,
     };
 
+    // Remove private job pictures (including abandoned draft uploads) before deleting the owner.
+    for (;;) {
+      const listed = await fetch(`${supabaseUrl}/storage/v1/object/list/job-photos`, {
+        method: 'POST', headers: { ...serviceHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prefix: `${userId}/`, limit: 100, offset: 0 }),
+      });
+      if (!listed.ok) throw new Error('Unable to list job pictures for account deletion.');
+      const objects = await listed.json();
+      if (!Array.isArray(objects)) throw new Error('Invalid job picture list.');
+      if (!objects.length) break;
+      const prefixes = objects.map((object: { name: string }) => {
+        if (!object.name || object.name.includes('/')) throw new Error('Unexpected job picture path.');
+        return `${userId}/${object.name}`;
+      });
+      const removed = await fetch(`${supabaseUrl}/storage/v1/object/job-photos`, {
+        method: 'DELETE', headers: { ...serviceHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prefixes }),
+      });
+      if (!removed.ok) throw new Error('Unable to remove job pictures for account deletion.');
+    }
+
     const deleteLogoResponse = await fetch(
       `${supabaseUrl}/storage/v1/object/logos/${encodeURIComponent(userId)}/logo`,
       {

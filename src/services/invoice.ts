@@ -1,4 +1,5 @@
 import { calendarDate, isOutstanding } from '../utils/invoiceValues';
+import { resolvePhotos } from './jobPhotos';
 import { supabase } from './supabase';
 import { Invoice, InvoiceFormData, InvoiceItem } from '../types';
 
@@ -17,13 +18,14 @@ export const invoiceService = {
     return data;
   },
 
-  async getInvoices(status?: string, startDate?: string, endDate?: string): Promise<Invoice[]> {
+  async getInvoices(status?: string, startDate?: string, endDate?: string, documentType: 'quote' | 'invoice' = 'invoice'): Promise<Invoice[]> {
     const session = await supabase.auth.getSession();
     if (!session.data.session?.user) throw new Error('Not authenticated');
 
     let query = supabase
       .from('invoices')
       .select('*, customer:customers(*), items:invoice_items(*)')
+      .eq('document_type', documentType)
       .eq('user_id', session.data.session.user.id)
       .order('created_at', { ascending: false });
 
@@ -63,6 +65,7 @@ export const invoiceService = {
     const customer = data.customer;
     return {
       ...data,
+      photos: await resolvePhotos(data.photos || []),
       items: (data.items || []).sort((a: InvoiceItem, b: InvoiceItem) => a.sort_order - b.sort_order),
       customer: (customer || data.customer_name) ? {
         ...customer,
@@ -73,6 +76,18 @@ export const invoiceService = {
         phone: data.customer_phone ?? customer?.phone,
       } : undefined,
     };
+  },
+
+  async approveQuote(id: string) {
+    const { data, error } = await supabase.rpc('approve_quote', { p_invoice_id: id });
+    if (error) throw error;
+    return data as Invoice;
+  },
+
+  async updateJob(id: string, photos: Invoice['photos'], complete = false) {
+    const { error } = await supabase.rpc('update_job', { p_invoice_id: id,
+      p_photos: (photos || []).map(({ path, stage }) => ({ path, stage })), p_complete: complete });
+    if (error) throw error;
   },
 
   async markInvoiceSent(id: string) {
@@ -138,6 +153,7 @@ export const invoiceService = {
       .from('invoices')
       .select('status, total, due_date')
       .eq('user_id', userId)
+      .eq('document_type', 'invoice')
       .neq('status', 'void');
 
     // Add date range filtering
@@ -157,7 +173,7 @@ export const invoiceService = {
       .from('invoices')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
-      .eq('status', 'void');
+      .eq('document_type', 'invoice').eq('status', 'void');
 
     // Add date range filtering for voided count
     if (startDate) {
@@ -206,6 +222,7 @@ export const invoiceService = {
       .select('issue_date, status, total')
       .eq('user_id', userId)
       .neq('status', 'void')
+      .eq('document_type', 'invoice')
       .gte('issue_date', startDate)
       .lte('issue_date', endDate);
 

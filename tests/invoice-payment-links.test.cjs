@@ -3,11 +3,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
-let printedHtml, emailHtml, shared = false;
+let printedHtml, emailHtml, attachments, shared = false;
 const mocks = {
   'expo-print': { printToFileAsync: async ({ html }) => { printedHtml = html; return { uri: 'file:///invoice.pdf' }; } },
   'expo-sharing': { isAvailableAsync: async () => true, shareAsync: async () => { shared = true; } },
-  'expo-mail-composer': { isAvailableAsync: async () => true, composeAsync: async ({ body }) => { emailHtml = body; return { status: 'sent' }; } },
+  'expo-mail-composer': { isAvailableAsync: async () => true, composeAsync: async ({ body, attachments: files }) => { emailHtml = body; attachments = files; return { status: 'sent' }; } },
   'expo-linking': {}, 'react-native': {},
 };
 const cache = new Map();
@@ -64,5 +64,38 @@ function check(html) {
   assert.ok(fallback.includes('Please contact us for payment instructions.'));
   const unsafe = email.generateInvoiceEmailHTML({ ...params, paymentMethods: [{ type: 'other', label: 'Other', value: 'javascript:alert(1)' }] });
   assert.ok(!unsafe.includes('href="javascript:'));
+  assert.equal(attachments[0], 'file:///invoice.pdf');
+  const quote = { ...params, invoice: { ...params.invoice, document_type: 'quote', status: 'sent', invoice_number: 'QUO-TEST', photos: [
+    { stage: 'before', path: 'before.jpg', url: 'https://example.test/before.jpg' },
+    { stage: 'finished', path: 'unsafe', url: 'javascript:alert(1)' },
+  ] } };
+  for (const header_layout of ['inline', 'stacked']) {
+    const html = email.generateInvoiceEmailHTML({ ...quote, templateSettings: { header_layout } });
+    assert.ok(html.includes('Quote #QUO-TEST'));
+    assert.ok(html.includes('Quoted Total'));
+    assert.ok(html.includes('Valid Until'));
+    assert.ok(!html.includes('Pay with'));
+    assert.ok(!html.includes('Payment Instructions:'));
+    assert.ok(!html.includes('Total Due'));
+    assert.ok(html.includes('before.jpg'));
+    assert.ok(!html.includes('javascript:'));
+  }
+  await email.sendInvoiceEmail(quote);
+  assert.ok(printedHtml.includes('Quote #QUO-TEST'));
+  const paid = { ...params, invoice: { ...params.invoice, status: 'paid', paid_at: '2026-09-21', photos: [
+    { stage: 'finished', path: 'after.jpg', url: 'https://example.test/after.jpg' },
+  ] } };
+  await load('src/services/invoicePdf.ts').shareInvoicePdf(paid, true);
+  assert.ok(printedHtml.includes('Payment Receipt'));
+  assert.ok(printedHtml.includes('Total Paid'));
+  assert.ok(printedHtml.includes('Finished pictures'));
+  assert.ok(printedHtml.includes('after.jpg'));
+  assert.ok(!printedHtml.includes('Pay with'));
+  await assert.rejects(() => load('src/services/invoicePdf.ts').shareInvoicePdf(quote, true), /paid invoice/);
+  const receiptResult = await email.sendReceiptEmail(paid);
+  assert.equal(receiptResult.success, true);
+  assert.ok(emailHtml.includes('Total Paid'));
+  assert.equal(attachments[0], 'file:///invoice.pdf');
+  console.log('Quote labeling, payment suppression, receipt eligibility, photos and PDF attachments passed.');
   console.log('Payment settings validation and payment links in email/PDF export passed.');
 })().catch(error => { console.error(error); process.exit(1); });

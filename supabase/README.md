@@ -10,6 +10,7 @@ Verified September 20, 2026. Project: dfqjfbtizqrzqujkvalx.
 | 202609150002 | Atomic invoice draft saving |
 | 202609190001 | Verified Google billing registry, RPCs and scoped protection |
 | 202609200001 | Five-minute billing reconciliation schedule |
+| 202609210001 | Quote conversion, job completion, private job photos and receipt workflow |
 
 The last two migrations had been applied manually. Their function bodies and live triggers were verified against source, their tables have RLS and no anon/authenticated grants, and migration history was repaired to applied. Do not replay them.
 
@@ -20,6 +21,8 @@ The database existed before these migrations. Root SQL files are historical setu
 Source downloaded from production matched all four local files for verify-google-purchase, its entitlement helper, the shared verifier and reconcile-google-purchases. Both functions use internal authentication; config.toml records verify_jwt=false. A subsequent full download verified all nine deployed function entrypoints and the shared billing helpers against repository source. The existing delete-account source was recovered into main without invoking or redeploying it. config.toml records the observed gateway JWT settings for all nine functions. The Android candidate still uses the support-assisted deletion request page.
 
 The google-play-reconciliation cron job is active every five minutes. Recent retained HTTP responses were 200. Its credential is stored in Vault and Edge Function secrets; never commit it. Terminal legacy tokens are excluded from automatic retries without downgrading legacy access.
+
+The document workflow migration was applied September 21, 2026. `create-payment-link` version 8 rejects quotes and closed invoices, `send-reminders` version 8 excludes quotes, and `delete-account` version 5 removes private job pictures before deleting the account. The `job-photos` bucket is private and restricted to the authenticated owner's folder.
 
 ## Deliberately pending production activation
 

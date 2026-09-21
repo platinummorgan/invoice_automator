@@ -86,6 +86,6 @@ export default function DashboardScreen({ navigation }: { navigation: any }) {
       onFilter={setFilter} onPeriod={setPeriod} onRefresh={() => loadData(true)}
       onCreate={() => navigation.navigate('NewInvoice')}
       onOpen={invoiceId => navigation.navigate('InvoiceDetail', { invoiceId })}
-      onPlans={() => navigation.navigate('Settings')} />
+      onPlans={() => navigation.navigate('Settings', { focusPlan: true })} />
   </SafeAreaView>;
 }

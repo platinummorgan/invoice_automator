@@ -21,6 +21,19 @@ Use an internal Android build with the new native PDF dependencies. Supabase mig
 9. Open help, About, terms and privacy policy. Check scrolling, close controls and large text. Send feedback only when you intend to send a real message.
 10. Check the displayed plan against the account's expected entitlement. Test any purchase flow using the configured Google Play test account and distribution method.
 
+## Quote, pictures and receipt checks — build 20
+
+1. Open Menu and confirm the order is Quote, Invoice, Receipt.
+2. Create a quote with a customer, two items, tax, notes and at least one job/before picture. Save it, reopen it and share its PDF. Confirm it says Quote and contains no payment request.
+3. Email the quote. Confirm the email draft has the quote PDF attached. After customer approval, tap Approve quote & create invoice. Confirm the customer, items, totals, notes and picture remain, and the original quote number is shown.
+4. Review the invoice dates, add a finished picture and mark the job completed. Confirm completion alone does not create a receipt or mark the invoice paid.
+5. Record full payment. Confirm the receipt email opens with a PDF attached. Cancel once and retry from Receipts. Use Share receipt PDF / text and select a messaging app.
+6. Open the received quote, invoice and receipt PDFs. Confirm both picture sections render, including after waiting at least an hour so temporary image links have expired.
+7. Deny photo permission once, retry after granting it, and repeat once while offline. Confirm the document remains usable and no duplicate payment or invoice is created.
+8. With both free documents used, attempt to create another invoice and tap Upgrade to Pro. Confirm the app opens Settings directly at Your plan with the Upgrade to Pro button visible. Repeat from the dashboard's View plans link.
+
+Owner confirmation — September 21, 2026: all build 21 checks passed on device, including the free-limit upgrade route.
+
 Record each issue with the screen, action, expected result and actual result. Include theme, text size and device model when layout is affected.
 
 ## Remaining release limitations
