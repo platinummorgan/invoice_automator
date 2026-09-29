@@ -1,15 +1,15 @@
 # Swift Invoice release status
 
-Verified September 21, 2026. This document is the authoritative summary; older review and working-note files are historical.
+Verified September 29, 2026. This document is the authoritative summary; older review and working-note files are historical.
 
 ## Versions
 
 | Surface | Status |
 | --- | --- |
-| Google Play production | 1.3.0, version code 22, release committed and production track `completed` (API verified); store propagation may lag |
+| Google Play production | 1.3.0, version code 23, Pro renewal hotfix committed and production track `completed` (API verified); store propagation may lag |
 | iOS App Store candidate | 1.3.0 (29) signed and audited; App Store Connect upload blocked on refreshing the stored EAS API key, then TestFlight, metadata, and review submission remain |
-| Android release artifact | 1.3.0 (22), signed EAS production AAB uploaded to Google Play |
-| Google Play internal testing | 1.2.2 (19), completed release status (API verified); owner reports final-build checks passed |
+| Android release artifact | 1.3.0 (23), signed EAS production AAB uploaded to Google Play |
+| Google Play internal testing | 1.3.0 (23), completed release status (API verified); renewal hotfix tested on the connected Android 16 phone using an AAB-derived APK |
 | Workflow test APK | 1.2.2 (20), EAS build finished and installed on the connected device; not uploaded to Play |
 | Upgrade-route test APK | 1.2.2 (21), installed and owner-accepted on device; not uploaded to Play |
 | Previous candidate build 18 | Finished, superseded; not the final artifact |
@@ -18,7 +18,7 @@ Verified September 21, 2026. This document is the authoritative summary; older r
 | Supabase | All five tracked migrations applied; document and billing function deployments verified; iOS Apple and Google callback authentication configured |
 | Next Android update | R8 optimization and Expo/React Native edge-to-edge upgrade required; plan documented |
 
-Build 19 was released to internal testing and later completed on production. It has now been superseded on production by version 1.3.0 (22). The earlier build-18 upload was rolled back after a commit-parameter error.
+Build 19 was released to internal testing and later completed on production. It was superseded by version 1.3.0 (22), then the September 29 billing hotfix 1.3.0 (23). The earlier build-18 upload was rolled back after a commit-parameter error.
 
 Build 20 is the internal APK that introduced the quote → invoice → receipt workflow. It finished successfully on EAS and was installed over the existing app on the connected device with data preservation. [EAS build 20](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/7b73bd5c-6372-4b14-a8c6-0475388fe7bb); APK SHA-256: `760027F33A4552B84DF1860721AC1CCBA7B358B4AED090389D9991162CC4BCB0`.
 
@@ -27,6 +27,17 @@ Build 21 fixes the free-limit Upgrade and View plans routes so they select the n
 Tester opt-in: https://play.google.com/apps/testing/com.invoiceautomator.app. The owner reports the requested final-build tests passed.
 
 ## Android production provenance
+
+- Version: 1.3.0 (23), Pro renewal synchronization hotfix.
+- Source: `164005ed1d9fdce29326264cd82954e2a5f9e1d9`, based on the latest Mac build-29 commits.
+- [EAS build 23](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/23a6a574-5bfe-4dc1-9167-f36ecb33a786).
+- Artifact: `swift-invoice-1.3.0-23.aab` (70,073,266 bytes); SHA-256: `610c0c87acf7097486e7f1a8ae9887243a065c265d05bc8e3e13e18c09b18539`.
+- Google validated and committed the internal upload, then the production promotion. A fresh API read confirmed build 23 is `completed` on both tracks.
+- Clean install, app/server tests, TypeScript, 18 Expo Doctor checks and GitHub CI passed. The connected Android 16 phone passed purchase, restore, true expiry and foreground/document access across two actual Google test renewals.
+- The phone was updated in place from sideloaded build 21 using its existing signing key. Its test APK was derived from the release AAB; it is not Play-installed. JavaScript/native libraries matched Google's generated APK. See [hotfix evidence and limitations](ANDROID_BILLING_HOTFIX.md).
+- The native upgrade/R8 plan remains for the next feature release under the documented hotfix exception. Apple build 29 was not changed or rebuilt.
+
+## Previous Android production build 22
 
 - Version: 1.3.0 (22).
 - Source commit: `0927f3233e7811caa6ca57a07dc38a3e33536cd1`.
