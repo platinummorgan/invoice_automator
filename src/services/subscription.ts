@@ -119,11 +119,25 @@ const getInvoiceLimitOnThisPlatform = (profile: any) =>
 
 const billingListeners = new Set<(error?: string) => void>();
 const notifyBilling = (error?: string) => billingListeners.forEach(listener => listener(error));
+const pendingSyncs = new Map<string, Promise<boolean>>();
+const isAlreadyOwnedError = (error: any) =>
+  error?.code === 'already-owned' || error?.code === 'E_ALREADY_OWNED';
 
-const findSubscriptionPurchase = (purchases: Purchase[]) =>
-  purchases.find((purchase) =>
-    purchase.productId ? SUBSCRIPTION_PRODUCT_IDS.includes(purchase.productId as any) : false
-  );
+// A stored expiry can lag a Play renewal until the scheduled server recheck.
+// Verify owned purchases before presenting a downgrade or enforcing the free limit.
+const getCurrentProfile = async (userId: string) => {
+  const read = async () => {
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    if (error) throw error;
+    return data;
+  };
+  const profile = await read();
+  if (Platform.OS === 'android' && profile && !isProfilePaid(profile) && getIapModule()) {
+    await subscriptionService.syncSubscriptionStatus();
+    return read();
+  }
+  return profile;
+};
 
 export const subscriptionService = {
   onBillingChange(listener: (error?: string) => void) {
@@ -166,7 +180,14 @@ export const subscriptionService = {
     }
 
     if (!purchaseErrorSubscription) {
-      purchaseErrorSubscription = iap.purchaseErrorListener((error) => {
+      purchaseErrorSubscription = iap.purchaseErrorListener(async (error) => {
+        if (isAlreadyOwnedError(error)) {
+          try {
+            if (await subscriptionService.restorePurchases()) return;
+          } catch { /* Show a restore-specific message below. */ }
+          notifyBilling('Google Play already owns this subscription, but access could not be refreshed. Use Restore purchases in Settings to try again.');
+          return;
+        }
         if (error?.code !== 'user-cancelled' && error?.code !== 'E_USER_CANCELLED') notifyBilling('The purchase did not finish. Please try again.');
       });
     }
@@ -199,13 +220,7 @@ export const subscriptionService = {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (error) throw error;
+      const profile = await getCurrentProfile(user.id);
       if (!profile) return { allowed: true };
 
       if (hasPaidAccessOnThisPlatform(profile)) {
@@ -271,13 +286,7 @@ export const subscriptionService = {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (error) throw error;
+      const profile = await getCurrentProfile(user.id);
       if (!profile) {
         return {
           tier: 'free',
@@ -289,8 +298,6 @@ export const subscriptionService = {
           remainingInvoices: FREE_TIER_LIMIT,
         };
       }
-
-      if (error) throw error;
 
       const invoiceCount = await getCurrentMonthInvoiceCount(user.id);
       const invoiceLimit = getInvoiceLimitOnThisPlatform(profile);
@@ -319,6 +326,10 @@ export const subscriptionService = {
       if (Platform.OS !== 'android') throw new Error('Subscriptions are currently available through Google Play on Android.');
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Please sign in before upgrading.');
+      if (await this.syncSubscriptionStatus()) {
+        notifyBilling();
+        return;
+      }
       const { data: readiness, error: readinessError } = await supabase.functions.invoke('verify-google-purchase', { body: { action: 'ready' } });
       if (readinessError || !readiness?.ready) throw new Error('Subscription verification is temporarily unavailable. Please try again later.');
       const accountId = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, user.id);
@@ -365,6 +376,7 @@ export const subscriptionService = {
               },
       });
     } catch (error: any) {
+      if (isAlreadyOwnedError(error) && await this.restorePurchases()) return;
       console.error('Error upgrading to Pro:', error);
       throw error;
     }
@@ -387,19 +399,7 @@ export const subscriptionService = {
         throw new Error('Purchase restoration is currently available through Google Play on Android.');
       }
 
-      const ready = await initIAP();
-      if (!ready) {
-        throw new Error(
-          'Subscriptions are unavailable in Expo Go. Test restore purchases on a development build.'
-        );
-      }
-      const iap = requireIapModule();
-
-      const purchases = await iap.getAvailablePurchases();
-
-      const subscriptions = purchases.filter(p => p.productId && SUBSCRIPTION_PRODUCT_IDS.includes(p.productId as any));
-      let active = false;
-      for (const purchase of subscriptions) active = (await this.verifyPurchase(purchase)) || active;
+      const active = await this.syncSubscriptionStatus();
       notifyBilling();
       return active;
     } catch (error: any) {
@@ -410,23 +410,26 @@ export const subscriptionService = {
 
   // Check subscription status from Google Play
   async syncSubscriptionStatus() {
-    try {
-      if (Platform.OS !== 'android') return;
-
+    if (Platform.OS !== 'android') return false;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Please sign in to restore purchases.');
+    const pending = pendingSyncs.get(user.id);
+    if (pending) return pending;
+    const sync = (async () => {
       const ready = await initIAP();
-      if (!ready) return;
-      const iap = requireIapModule();
-
-      const purchases = await iap.getAvailablePurchases();
-      const proPurchase = findSubscriptionPurchase(purchases);
-
-      if (!proPurchase) {
-        return;
-      } else {
-        await this.verifyPurchase(proPurchase);
+      if (!ready) throw new Error('Google Play is unavailable. Please try again.');
+      const purchases = await requireIapModule().getAvailablePurchases();
+      let active = false;
+      let failure: unknown;
+      for (const purchase of purchases.filter(p => p.productId && SUBSCRIPTION_PRODUCT_IDS.includes(p.productId as any))) {
+        try { active = (await this.verifyPurchase(purchase)) || active; }
+        catch (error) { failure = error; }
       }
-    } catch (error) {
-      console.error('Error syncing subscription:', error);
-    }
+      if (!active && failure) throw failure;
+      return active;
+    })();
+    pendingSyncs.set(user.id, sync);
+    try { return await sync; }
+    finally { pendingSyncs.delete(user.id); }
   },
 };

@@ -2,6 +2,10 @@
 
 Google Play reported two Android quality items for production version `1.3.0 (22)`. They do not block the current release, but they must be treated as release gates for the next Android update.
 
+## September 29 billing hotfix exception
+
+The renewal synchronization hotfix is limited to JavaScript billing and plan refresh behavior on the existing SDK 54 native stack. It may ship as a higher Android version code of 1.3.0 after internal Play renewal/restore testing. The framework upgrade and R8 changes below remain required for the next planned feature release; combining them with this urgent billing repair would widen native regression risk and affect the shared iOS source while build 29 is awaiting review. The existing signed Apple candidate is unaffected. This exception does not waive testing of the actual hotfix artifact.
+
 ## Findings
 
 ### DEX optimization

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppState } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calendarDate } from '../utils/invoiceValues';
@@ -77,7 +78,11 @@ export default function DashboardScreen({ navigation }: { navigation: any }) {
       } catch { /* Invoice access must not depend on the plan hint. */ }
     };
     loadExtras();
-    return () => { active = false; };
+    const unsubscribe = subscriptionService.onBillingChange(() => { loadExtras(); });
+    const foreground = AppState.addEventListener('change', state => {
+      if (state === 'active') loadExtras();
+    });
+    return () => { active = false; unsubscribe(); foreground.remove(); };
   }, []));
 
   return <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: theme.colors.background }}>
