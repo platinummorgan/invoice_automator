@@ -1,6 +1,6 @@
 # Swift Invoice: first iOS App Store submission
 
-This repository is prepared for iOS version `1.3.0` with bundle identifier `com.invoiceautomator.app`. EAS Build manages the iOS certificate and provisioning profile remotely. The App Store Connect app record is configured as Apple ID `6788092733`.
+This repository is prepared for iOS version `1.3.0` with bundle identifier `com.invoiceautomator.app`. EAS Build manages the iOS certificate and provisioning profile remotely. The App Store Connect app record is configured as Apple ID `6788092733`. Audited replacement [EAS build 29](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/18738c76-d2db-4b1e-8af5-c1f6f7324980) finished successfully from commit `40e6abd5f52777b1ad5f6a9a0348e4ef2ab5c993`.
 
 Do not submit build 28 for review. It was uploaded successfully, but the September 29 release audit found that it allowed a Google Play entitlement to unlock iPhone features without offering the same tier through Apple In-App Purchase. The replacement candidate makes the iPhone app a self-contained free plan, removes references to other mobile platforms from the iOS interface, removes an unused Contacts permission, and targets iPhone only. Google Play entitlements remain Android-only until Apple billing is implemented.
 
@@ -42,13 +42,13 @@ EAS already produced successful App Store builds 23, 24, 26, and 27 for this bun
 
 ## 3. Build the App Store binary
 
-Build a replacement from the audited source. The build command is:
+Build 29 is the replacement candidate. Build again only if source changes. The build command is:
 
 ```bash
 npm run build:ios
 ```
 
-Select the correct Apple team if prompted. EAS reads the user-facing version `1.3.0` from `app.json` and auto-increments the iOS build number remotely. Build 28 is superseded, so the replacement should become build 29; use the number EAS reports as authoritative. Wait for the build to finish and keep the EAS build URL.
+EAS read version `1.3.0` from `app.json` and assigned build number 29. The signed IPA is 15,346,142 bytes with SHA-256 `e519410bdb7966afc4d5df6ed22bd1f62cbd1e119003187aa1e38f6bea745d9e`. Inspection confirmed bundle `com.invoiceautomator.app`, iPhone-only device family, iOS 15.1 minimum, Xcode/iOS SDK 26, production signing, Sign in with Apple entitlement, and `ITSAppUsesNonExemptEncryption=false`.
 
 Install the build through TestFlight and test on a physical iPhone:
 
@@ -61,13 +61,17 @@ Install the build through TestFlight and test on a physical iPhone:
 
 ## 4. Upload to App Store Connect
 
-Build 28 was uploaded successfully through [EAS submission d2eb5ed2](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/submissions/d2eb5ed2-133c-4a84-9184-67a810d22e52), but is superseded and must not be selected for App Review. Upload the replacement with:
+Build 28 was uploaded successfully through [EAS submission d2eb5ed2](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/submissions/d2eb5ed2-133c-4a84-9184-67a810d22e52), but is superseded and must not be selected for App Review.
+
+Build 29 upload is blocked on refreshing the stored App Store Connect API key. [Submission 1b021081](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/submissions/1b021081-3f82-4119-8cf8-e51e4ce715b4) and [retry 56d41264](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/submissions/56d41264-691e-4950-8092-dd57071fb7e4) both errored before a submission worker or log file was created. EAS Submit and Apple Developer APIs reported operational, making the nine-month-old stored key the likely cause.
+
+Refresh it with `npx eas-cli@latest credentials --platform ios`, choose `production`, authenticate to Apple, then choose **App Store Connect: Manage your API Key** and replace the EAS Submit key. Alternatively, create an App Store Connect team API key with sufficient app-management access, download its `.p8` file once, and add that key through the same menu. Do not use a Sign in with Apple key; it is a different credential type. Then retry the replacement upload with:
 
 ```bash
-npx eas-cli@latest submit --platform ios --profile production --latest
+npx eas-cli@latest submit --platform ios --profile production --id 18738c76-d2db-4b1e-8af5-c1f6f7324980
 ```
 
-The submit profile targets App Store Connect app `6788092733`. Processing in App Store Connect can take several minutes. Attach only the replacement build to the `1.3.0` version.
+The submit profile targets App Store Connect app `6788092733`. Processing in App Store Connect can take several minutes. Attach only build 29 to the `1.3.0` version.
 
 ## 5. App Store listing draft
 

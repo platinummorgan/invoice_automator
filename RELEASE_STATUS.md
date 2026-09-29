@@ -7,7 +7,7 @@ Verified September 21, 2026. This document is the authoritative summary; older r
 | Surface | Status |
 | --- | --- |
 | Google Play production | 1.3.0, version code 22, release committed and production track `completed` (API verified); store propagation may lag |
-| iOS App Store candidate | Build 28 uploaded but superseded by September 29 review fixes; replacement build, TestFlight validation, metadata, and review submission pending |
+| iOS App Store candidate | 1.3.0 (29) signed and audited; App Store Connect upload blocked on refreshing the stored EAS API key, then TestFlight, metadata, and review submission remain |
 | Android release artifact | 1.3.0 (22), signed EAS production AAB uploaded to Google Play |
 | Google Play internal testing | 1.2.2 (19), completed release status (API verified); owner reports final-build checks passed |
 | Workflow test APK | 1.2.2 (20), EAS build finished and installed on the connected device; not uploaded to Play |
@@ -89,11 +89,15 @@ Version 1.3.0 adds the iOS native configuration, Sign in with Apple, browser-bas
 
 [EAS iOS build 28](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/7d92d41f-cd6a-4e39-8a2b-15b94fdb8e1e) finished successfully from source commit `b861072f2344cf03d208bc2936fcb2c357a79c1b`. It was uploaded but is superseded and must not be submitted for review. The September 29 audit found an out-of-sync dependency lock and an App Review risk: the iPhone app honored Google Play Pro entitlements without offering the same tier through Apple In-App Purchase. The replacement keeps Google Play entitlements Android-only, removes other-platform purchase references from the iOS interface, removes the unused Contacts permission, and makes the first release iPhone-only.
 
+[EAS iOS build 29](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/18738c76-d2db-4b1e-8af5-c1f6f7324980) finished successfully from audited commit `40e6abd5f52777b1ad5f6a9a0348e4ef2ab5c993`. The signed IPA is 15,346,142 bytes with SHA-256 `e519410bdb7966afc4d5df6ed22bd1f62cbd1e119003187aa1e38f6bea745d9e`. It is iPhone-only, signed for production, uses Xcode/iOS SDK 26, includes Sign in with Apple, and declares no non-exempt encryption.
+
+Two EAS Submit attempts for build 29 errored before a worker or log file was created. The stored App Store Connect API key must be refreshed through EAS credentials using the Apple account and 2FA, or replaced with a new App Store Connect team API key. The binary did not receive an Apple validation rejection and does not need to be rebuilt for this credential issue.
+
 [EAS submission](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/submissions/d2eb5ed2-133c-4a84-9184-67a810d22e52) finished successfully and uploaded build 28 to App Store Connect app `6788092733`.
 
 Production Supabase project `dfqjfbtizqrzqujkvalx` now has Apple authentication enabled for client ID `com.invoiceautomator.app`. Google authentication remains enabled, and the exact iOS OAuth callback `com.invoiceautomator.app://auth/callback` was added to the redirect allow list. Both settings were read back after the update.
 
-The remaining work is to build and upload the audited replacement, validate it through TestFlight on a physical iPhone, finish App Privacy and listing metadata, and submit it for review. See `IOS_APP_STORE_SUBMISSION.md`.
+The remaining work is to refresh the App Store Connect API key, upload build 29, validate it through TestFlight on a physical iPhone, finish App Privacy and listing metadata, and submit it for review. See `IOS_APP_STORE_SUBMISSION.md`.
 
 ## Branch scope
 
