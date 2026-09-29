@@ -1,6 +1,5 @@
 import { supabase } from './supabase';
 import { Customer } from '../types';
-import * as Contacts from 'expo-contacts';
 
 export const customerService = {
   async getCustomers(): Promise<Customer[]> {
@@ -51,27 +50,5 @@ export const customerService = {
   async deleteCustomer(id: string) {
     const { error } = await supabase.from('customers').delete().eq('id', id);
     if (error) throw error;
-  },
-
-  async requestContactsPermission(): Promise<boolean> {
-    const { status } = await Contacts.requestPermissionsAsync();
-    return status === 'granted';
-  },
-
-  async importFromContacts(): Promise<Contacts.Contact[]> {
-    const { status } = await Contacts.requestPermissionsAsync();
-    if (status !== 'granted') {
-      throw new Error('Contacts permission not granted');
-    }
-
-    const { data } = await Contacts.getContactsAsync({
-      fields: [
-        Contacts.Fields.Name,
-        Contacts.Fields.PhoneNumbers,
-        Contacts.Fields.Emails,
-      ],
-    });
-
-    return data;
   },
 };

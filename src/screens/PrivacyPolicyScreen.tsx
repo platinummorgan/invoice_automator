@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Modal,
+  Platform,
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -70,12 +71,12 @@ export default function PrivacyPolicyScreen({ visible, onClose }: PrivacyPolicyS
 
           <Text style={styles.sectionTitle}>5. Service Providers and Email</Text>
           <Text style={styles.paragraph}>
-            We use Supabase for cloud storage and authentication, Apple or Google when you choose their sign-in option, and Google Play Billing for Android Pro subscriptions. When you email a quote, invoice, or receipt, Swift Invoice opens your device's email application with a pre-filled draft. Your email provider sends that message from your device.
+            We use Supabase for cloud storage and authentication, and Apple or Google when you choose their sign-in option. {Platform.OS === 'android' ? 'Google Play Billing processes Android Pro subscriptions. ' : ''}When you email a quote, invoice, or receipt, Swift Invoice opens your device's email application with a pre-filled draft. Your email provider sends that message from your device.
           </Text>
 
           <Text style={styles.sectionTitle}>6. Data Retention</Text>
           <Text style={styles.paragraph}>
-            We retain your information while your account is active or as needed to provide the service. You can permanently delete your account and its stored data in Settings → Delete account. Exported documents, messages already sent to recipients, and copies stored on your device are outside our control. Account deletion does not cancel store billing; subscriptions must be managed separately in the store where they were purchased.
+            We retain your information while your account is active or as needed to provide the service. You can permanently delete your account and its stored data in Settings → Delete account. Exported documents, messages already sent to recipients, and copies stored on your device are outside our control.{Platform.OS === 'android' ? ' Account deletion does not cancel Google Play billing; subscriptions must be managed separately in Google Play.' : ''}
           </Text>
 
           <Text style={styles.sectionTitle}>7. Your Rights</Text>

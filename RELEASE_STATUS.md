@@ -7,7 +7,7 @@ Verified September 21, 2026. This document is the authoritative summary; older r
 | Surface | Status |
 | --- | --- |
 | Google Play production | 1.3.0, version code 22, release committed and production track `completed` (API verified); store propagation may lag |
-| iOS App Store candidate | 1.3.0 (28), signed build and App Store Connect upload finished; Apple processing, TestFlight validation, metadata, and review submission pending |
+| iOS App Store candidate | Build 28 uploaded but superseded by September 29 review fixes; replacement build, TestFlight validation, metadata, and review submission pending |
 | Android release artifact | 1.3.0 (22), signed EAS production AAB uploaded to Google Play |
 | Google Play internal testing | 1.2.2 (19), completed release status (API verified); owner reports final-build checks passed |
 | Workflow test APK | 1.2.2 (20), EAS build finished and installed on the connected device; not uploaded to Play |
@@ -85,15 +85,15 @@ All five migrations match remote history. The seven billing/scheduler function b
 
 ## First iOS submission
 
-Version 1.3.0 adds the iOS native configuration, Sign in with Apple, browser-based Google OAuth fallback, permanent in-app account deletion, App Store Connect submit target, and iPhone-safe plan messaging. The first iPhone release does not offer an in-app Pro purchase. Existing account entitlements still load; Android remains the purchase and restore platform until Apple billing is implemented.
+Version 1.3.0 adds the iOS native configuration, Sign in with Apple, browser-based Google OAuth fallback, permanent in-app account deletion, App Store Connect submit target, and iPhone-safe plan messaging. The first iPhone release is a self-contained free plan and does not load entitlements bought on another platform. Apple billing is planned for a later release.
 
-[EAS iOS build 28](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/7d92d41f-cd6a-4e39-8a2b-15b94fdb8e1e) finished successfully from source commit `b861072f2344cf03d208bc2936fcb2c357a79c1b`. The signed IPA is 16,354,604 bytes with SHA-256 `6710D98B00F56906AE97CDAA53A4F11EC2F14D1003516EE3728C1C327F2DD2A5`. The temporary direct artifact URL expires; use the stable EAS build page.
+[EAS iOS build 28](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/7d92d41f-cd6a-4e39-8a2b-15b94fdb8e1e) finished successfully from source commit `b861072f2344cf03d208bc2936fcb2c357a79c1b`. It was uploaded but is superseded and must not be submitted for review. The September 29 audit found an out-of-sync dependency lock and an App Review risk: the iPhone app honored Google Play Pro entitlements without offering the same tier through Apple In-App Purchase. The replacement keeps Google Play entitlements Android-only, removes other-platform purchase references from the iOS interface, removes the unused Contacts permission, and makes the first release iPhone-only.
 
 [EAS submission](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/submissions/d2eb5ed2-133c-4a84-9184-67a810d22e52) finished successfully and uploaded build 28 to App Store Connect app `6788092733`.
 
 Production Supabase project `dfqjfbtizqrzqujkvalx` now has Apple authentication enabled for client ID `com.invoiceautomator.app`. Google authentication remains enabled, and the exact iOS OAuth callback `com.invoiceautomator.app://auth/callback` was added to the redirect allow list. Both settings were read back after the update.
 
-The remaining work must be completed with the Apple Developer/App Store Connect accounts: verify the App ID capability, wait for Apple processing, validate build 28 through TestFlight, finish App Privacy and listing metadata, and submit for review. See `IOS_APP_STORE_SUBMISSION.md`.
+The remaining work is to build and upload the audited replacement, validate it through TestFlight on a physical iPhone, finish App Privacy and listing metadata, and submit it for review. See `IOS_APP_STORE_SUBMISSION.md`.
 
 ## Branch scope
 

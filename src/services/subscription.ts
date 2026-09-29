@@ -108,6 +108,15 @@ const isProfilePaid = (profile: any) => isPaidTier(profile.subscription_tier) &&
     Date.parse(profile.subscription_ends_at || '') > Date.now()
   ));
 
+// Google Play entitlements are Android-only until the same Pro tier is offered
+// through Apple In-App Purchase. This keeps the iOS release self-contained and
+// compliant with App Review's multiplatform-services rule.
+const hasPaidAccessOnThisPlatform = (profile: any) =>
+  Platform.OS === 'android' && isProfilePaid(profile);
+
+const getInvoiceLimitOnThisPlatform = (profile: any) =>
+  Platform.OS === 'ios' ? FREE_TIER_LIMIT : getProfileInvoiceLimit(profile);
+
 const billingListeners = new Set<(error?: string) => void>();
 const notifyBilling = (error?: string) => billingListeners.forEach(listener => listener(error));
 
@@ -199,19 +208,19 @@ export const subscriptionService = {
       if (error) throw error;
       if (!profile) return { allowed: true };
 
-      if (isProfilePaid(profile)) {
+      if (hasPaidAccessOnThisPlatform(profile)) {
         return { allowed: true };
       }
 
       const invoiceCount = await getCurrentMonthInvoiceCount(user.id);
-      const invoiceLimit = getProfileInvoiceLimit(profile);
+      const invoiceLimit = getInvoiceLimitOnThisPlatform(profile);
 
       if (invoiceCount >= invoiceLimit) {
         return {
           allowed: false,
           reason: Platform.OS === 'android'
             ? `You've reached your free tier limit of ${invoiceLimit} invoices this month. Upgrade to Pro for unlimited invoices.`
-            : `You've reached your free tier limit of ${invoiceLimit} invoices this month. Pro subscriptions are not offered in this iPhone release.`,
+            : `You've reached your free tier limit of ${invoiceLimit} documents this month. New documents become available when your monthly allowance resets.`,
         };
       }
 
@@ -243,7 +252,7 @@ export const subscriptionService = {
         .eq('id', user.id)
         .single();
 
-      if (profile && !isProfilePaid(profile)) {
+      if (profile && !hasPaidAccessOnThisPlatform(profile)) {
         await supabase
           .from('profiles')
           .update({ invoice_count: (profile.invoice_count || 0) + 1 })
@@ -284,15 +293,15 @@ export const subscriptionService = {
       if (error) throw error;
 
       const invoiceCount = await getCurrentMonthInvoiceCount(user.id);
-      const invoiceLimit = getProfileInvoiceLimit(profile);
-      const paid = isProfilePaid(profile);
+      const invoiceLimit = getInvoiceLimitOnThisPlatform(profile);
+      const paid = hasPaidAccessOnThisPlatform(profile);
 
       return {
-        tier: profile.subscription_tier || 'free',
-        status: profile.subscription_status || 'free',
+        tier: Platform.OS === 'ios' ? 'free' : profile.subscription_tier || 'free',
+        status: Platform.OS === 'ios' ? 'free' : profile.subscription_status || 'free',
         invoiceCount,
         invoiceLimit,
-        expiresAt: getProfileSubscriptionEndsAt(profile),
+        expiresAt: Platform.OS === 'ios' ? null : getProfileSubscriptionEndsAt(profile),
         isPro: paid,
         remainingInvoices: paid ? 999999 : Math.max(0, invoiceLimit - invoiceCount),
       };

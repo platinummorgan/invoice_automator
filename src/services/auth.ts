@@ -260,7 +260,12 @@ export const authService = {
     if (error) throw error;
   },
 
-  async deleteAccount() {
+  async deleteAccount(): Promise<{ needsAppleAuthorizationRevocation: boolean }> {
+    const { data: userData } = await supabase.auth.getUser();
+    const needsAppleAuthorizationRevocation = !!userData.user?.identities?.some(
+      identity => identity.provider === 'apple'
+    );
+
     const { data, error } = await supabase.functions.invoke('delete-account', {
       body: {},
     });
@@ -272,6 +277,8 @@ export const authService = {
     if (signOutError) {
       console.warn('Local sign out after account deletion failed:', signOutError);
     }
+
+    return { needsAppleAuthorizationRevocation };
   },
 
   async resetPassword(email: string) {

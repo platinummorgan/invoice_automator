@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Modal,
+  Platform,
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -74,7 +75,9 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
 
           <Text style={styles.sectionTitle}>6. Payment and Fees</Text>
           <Text style={styles.paragraph}>
-            Swift Invoice offers a free tier. Pro subscriptions are currently sold through Google Play on Android. The first iPhone release does not offer a Pro purchase. Existing account entitlements may be available across devices. Pricing, renewal, and cancellation terms are shown by the store before purchase.
+            {Platform.OS === 'ios'
+              ? 'Swift Invoice includes a free plan with a monthly document limit. Purchases and subscriptions are not offered in the iPhone app.'
+              : 'Swift Invoice offers a free tier and optional Pro subscriptions through Google Play. Pricing, renewal, and cancellation terms are shown by Google Play before purchase.'}
           </Text>
 
           <Text style={styles.sectionTitle}>7. Email Delivery</Text>
@@ -99,7 +102,7 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
 
           <Text style={styles.sectionTitle}>11. Termination</Text>
           <Text style={styles.paragraph}>
-            You may terminate your account at any time with Settings → Delete account. This permanently deletes stored account data and cannot be undone. Store subscriptions are managed separately and are not canceled by deleting the account. We reserve the right to suspend or terminate accounts that violate these terms or engage in abusive behavior.
+            You may terminate your account at any time with Settings → Delete account. This permanently deletes stored account data and cannot be undone. {Platform.OS === 'android' ? 'Google Play subscriptions are managed separately and are not canceled by deleting the account. ' : ''}We reserve the right to suspend or terminate accounts that violate these terms or engage in abusive behavior.
           </Text>
 
           <Text style={styles.sectionTitle}>12. Changes to Terms</Text>

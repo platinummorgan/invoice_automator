@@ -538,7 +538,7 @@ export default function SettingsScreen({ navigation, route }: SettingsScreenProp
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete account?',
-      'This permanently deletes your Swift Invoice account, business profile, customers, quotes, invoices, payments, logo, and job pictures. Store billing is managed separately and is not canceled automatically.',
+      `This permanently deletes your Swift Invoice account, business profile, customers, quotes, invoices, payments, logo, and job pictures.${Platform.OS === 'android' ? ' Google Play billing is managed separately and is not canceled automatically.' : ''}`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -556,7 +556,13 @@ export default function SettingsScreen({ navigation, route }: SettingsScreenProp
                   onPress: async () => {
                     try {
                       setDeletingAccount(true);
-                      await authService.deleteAccount();
+                      const { needsAppleAuthorizationRevocation } = await authService.deleteAccount();
+                      Alert.alert(
+                        'Account deleted',
+                        needsAppleAuthorizationRevocation
+                          ? 'Your Swift Invoice data was deleted. To remove the remaining Apple authorization, open iPhone Settings → your name → Sign in with Apple → Swift Invoice, then choose Delete.'
+                          : 'Your Swift Invoice account and stored data were permanently deleted.'
+                      );
                     } catch (error: any) {
                       Alert.alert(
                         'Delete account failed',
@@ -665,7 +671,7 @@ export default function SettingsScreen({ navigation, route }: SettingsScreenProp
             <Text style={styles.description}>The store shows the price and billing terms before you confirm.</Text>
           </>}
           {!subscriptionStatus.isPro && Platform.OS === 'ios' &&
-            <Text style={styles.description}>The first iPhone release uses the free plan. Pro purchases remain available through Google Play on Android.</Text>}
+            <Text style={styles.description}>This iPhone version includes the free plan. Pro is not available on iPhone.</Text>}
         </> : <>
           <Text style={styles.description}>Plan details are unavailable.</Text>
           {link('Reload plan details', loadSubscription)}
@@ -674,7 +680,7 @@ export default function SettingsScreen({ navigation, route }: SettingsScreenProp
       <View style={styles.section}>
         <Text style={styles.heading}>Help & information</Text>
         {link('Help & support', () => navigation.navigate('HelpSupport'))}
-        {link('Account and data deletion help', () => { Linking.openURL('https://platinummorgan.github.io/invoice_automator/delete-account.html').catch(() => Alert.alert('Account deletion help', 'Email support@platovalabs.com from your Swift Invoice account email for help with account or selected-data deletion.')); })}
+        {Platform.OS === 'android' && link('Account and data deletion help', () => { Linking.openURL('https://platinummorgan.github.io/invoice_automator/delete-account.html').catch(() => Alert.alert('Account deletion help', 'Email support@platovalabs.com from your Swift Invoice account email for help with account or selected-data deletion.')); })}
         {link('Send feedback', () => navigation.navigate('Feedback'))}
         {link('Privacy policy', () => setShowPrivacy(true))}
         {link('Terms of service', () => setShowTerms(true))}

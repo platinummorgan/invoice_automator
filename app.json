@@ -14,7 +14,7 @@
       "backgroundColor": "#F4EFE5"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.invoiceautomator.app",
       "usesAppleSignIn": true,
       "infoPlist": {
@@ -22,7 +22,6 @@
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false
         },
-        "NSContactsUsageDescription": "Allow Swift Invoice to access your contacts so you can quickly add customers.",
         "NSPhotoLibraryUsageDescription": "Allow Swift Invoice to access your photos so you can add job pictures and upload a business logo."
       }
     },
