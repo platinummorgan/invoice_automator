@@ -1,0 +1,22 @@
+appId: com.invoiceautomator.app
+---
+- launchApp:
+    clearState: true
+- tapOn: "you@business.com"
+- inputText: "${REVIEW_EMAIL}"
+- tapOn: "Enter password"
+- inputText: "${REVIEW_PASSWORD}"
+- hideKeyboard
+- tapOn:
+    point: "50%,58%"
+- waitForAnimationToEnd
+- tapOn:
+    text: "Not Now"
+    optional: true
+- extendedWaitUntil:
+    visible: "Go to my invoices"
+    timeout: 20000
+- tapOn: "Go to my invoices"
+- extendedWaitUntil:
+    visible: "Your jobs"
+    timeout: 20000
