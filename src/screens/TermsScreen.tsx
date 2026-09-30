@@ -76,7 +76,7 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
           <Text style={styles.sectionTitle}>6. Payment and Fees</Text>
           <Text style={styles.paragraph}>
             {Platform.OS === 'ios'
-              ? 'Swift Invoice includes a free plan with a monthly document limit. Purchases and subscriptions are not offered in the iPhone app.'
+              ? 'Swift Invoice offers a free tier and optional monthly or annual Pro subscriptions through Apple. Payment is charged to your Apple Account when you confirm the purchase. Subscriptions renew automatically unless canceled at least 24 hours before the current period ends. Your account is charged for renewal within 24 hours before the current period ends. You can manage or cancel your subscription in your App Store account settings.'
               : 'Swift Invoice offers a free tier and optional Pro subscriptions through Google Play. Pricing, renewal, and cancellation terms are shown by Google Play before purchase.'}
           </Text>
 
@@ -102,7 +102,7 @@ export default function TermsScreen({ visible, onClose }: TermsScreenProps) {
 
           <Text style={styles.sectionTitle}>11. Termination</Text>
           <Text style={styles.paragraph}>
-            You may terminate your account at any time with Settings → Delete account. This permanently deletes stored account data and cannot be undone. {Platform.OS === 'android' ? 'Google Play subscriptions are managed separately and are not canceled by deleting the account. ' : ''}We reserve the right to suspend or terminate accounts that violate these terms or engage in abusive behavior.
+            You may terminate your account at any time with Settings → Delete account. This permanently deletes stored account data and cannot be undone. {Platform.OS === 'android' ? 'Google Play subscriptions are managed separately and are not canceled by deleting the account. ' : Platform.OS === 'ios' ? 'App Store subscriptions are managed separately and are not canceled by deleting the account. ' : ''}We reserve the right to suspend or terminate accounts that violate these terms or engage in abusive behavior.
           </Text>
 
           <Text style={styles.sectionTitle}>12. Changes to Terms</Text>

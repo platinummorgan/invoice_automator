@@ -22,7 +22,11 @@ import Constants from 'expo-constants';
 import * as Application from 'expo-application';
 import { supabase } from '../services/supabase';
 import { authService } from '../services/auth';
-import { subscriptionService } from '../services/subscription';
+import {
+  subscriptionService,
+  type SubscriptionProduct,
+  type SubscriptionProductId,
+} from '../services/subscription';
 import * as ImagePicker from 'expo-image-picker';
 import {
   BusinessPaymentMethod,
@@ -129,6 +133,7 @@ export default function SettingsScreen({ navigation, route }: SettingsScreenProp
   const [showTerms, setShowTerms] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
+  const [subscriptionProducts, setSubscriptionProducts] = useState<SubscriptionProduct[]>([]);
   const scrollRef = useRef<ScrollView>(null);
   const [planSectionY, setPlanSectionY] = useState<number | null>(null);
 
@@ -143,7 +148,13 @@ export default function SettingsScreen({ navigation, route }: SettingsScreenProp
   useEffect(() => {
     loadProfile();
     loadSubscription();
-    const foreground = AppState.addEventListener('change', state => { if (state === 'active') loadSubscription(); });
+    loadSubscriptionProducts();
+    const foreground = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        loadSubscription();
+        loadSubscriptionProducts();
+      }
+    });
     const unsubscribe = subscriptionService.onBillingChange((error) => {
       loadSubscription();
       if (error) Alert.alert('Subscription update', error);
@@ -250,11 +261,26 @@ export default function SettingsScreen({ navigation, route }: SettingsScreenProp
     }
   };
 
+  const loadSubscriptionProducts = async () => {
+    try {
+      setSubscriptionProducts(await subscriptionService.getSubscriptionProducts());
+    } catch {
+      setSubscriptionProducts([]);
+    }
+  };
+
   const handleManageSubscription = async () => {
     try {
-      await Linking.openURL('https://play.google.com/store/account/subscriptions');
+      await Linking.openURL(Platform.OS === 'ios'
+        ? 'https://apps.apple.com/account/subscriptions'
+        : 'https://play.google.com/store/account/subscriptions');
     } catch {
-      Alert.alert('Open Google Play', 'Open Play Store → Payments & subscriptions → Subscriptions to manage Swift Invoice.');
+      Alert.alert(
+        Platform.OS === 'ios' ? 'Open App Store' : 'Open Google Play',
+        Platform.OS === 'ios'
+          ? 'Open Settings → your name → Subscriptions to manage Swift Invoice.'
+          : 'Open Play Store → Payments & subscriptions → Subscriptions to manage Swift Invoice.'
+      );
     }
   };
 
@@ -263,15 +289,21 @@ export default function SettingsScreen({ navigation, route }: SettingsScreenProp
     try {
       const restored = await subscriptionService.restorePurchases();
       await loadSubscription();
-      Alert.alert(restored ? 'Purchase verified' : 'No active subscription found', restored ? 'Your remaining Pro access has been verified with Google Play. Restoring does not restart a canceled subscription.' : 'Check that Google Play is using the account you purchased with.');
+      const store = Platform.OS === 'ios' ? 'Apple' : 'Google Play';
+      Alert.alert(
+        restored ? 'Purchase verified' : 'No active subscription found',
+        restored
+          ? `Your remaining Pro access has been verified with ${store}. Restoring does not restart a canceled subscription.`
+          : `Check that ${store} is using the account you purchased with.`
+      );
     } catch { Alert.alert('Restore unavailable', 'Your purchase could not be verified. Try again later or contact support.'); }
     finally { setRestoring(false); }
   };
 
-  const handleUpgrade = async () => {
+  const handleUpgrade = async (productId: SubscriptionProductId) => {
     try {
       setUpgrading(true);
-      await subscriptionService.upgradeToPro();
+      await subscriptionService.upgradeToPro(productId);
       // Success will be handled by the purchase listener
       // Reload subscription status after purchase
       await loadSubscription();
@@ -538,7 +570,7 @@ export default function SettingsScreen({ navigation, route }: SettingsScreenProp
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete account?',
-      `This permanently deletes your Swift Invoice account, business profile, customers, quotes, invoices, payments, logo, and job pictures.${Platform.OS === 'android' ? ' Google Play billing is managed separately and is not canceled automatically.' : ''}`,
+      `This permanently deletes your Swift Invoice account, business profile, customers, quotes, invoices, payments, logo, and job pictures.${Platform.OS === 'android' ? ' Google Play billing is managed separately and is not canceled automatically.' : Platform.OS === 'ios' ? ' App Store billing is managed separately and is not canceled automatically.' : ''}`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -656,22 +688,35 @@ export default function SettingsScreen({ navigation, route }: SettingsScreenProp
       </View>
       <View style={styles.section} onLayout={event => setPlanSectionY(event.nativeEvent.layout.y)}>
         <Text style={styles.heading}>Your plan</Text>
-        {Platform.OS === 'android' && link('Manage subscription in Google Play', handleManageSubscription)}
-        {Platform.OS === 'android' && <TouchableOpacity accessibilityRole="button" disabled={restoring || upgrading} style={styles.link} onPress={handleRestore}>
-          <Text style={styles.linkText}>{restoring ? 'Checking Google Play…' : 'Restore purchases'}</Text>
+        {(Platform.OS === 'android' || Platform.OS === 'ios') && subscriptionStatus?.isPro &&
+          link(`Manage subscription in ${Platform.OS === 'ios' ? 'the App Store' : 'Google Play'}`, handleManageSubscription)}
+        {(Platform.OS === 'android' || Platform.OS === 'ios') && <TouchableOpacity accessibilityRole="button" disabled={restoring || upgrading} style={styles.link} onPress={handleRestore}>
+          <Text style={styles.linkText}>{restoring ? `Checking ${Platform.OS === 'ios' ? 'Apple' : 'Google Play'}…` : 'Restore purchases'}</Text>
         </TouchableOpacity>}
         {subscriptionStatus ? <>
           <Text style={styles.linkText}>{subscriptionStatus.isPro ? 'Swift Invoice Pro' : 'Free plan'}</Text>
-          <Text style={styles.description}>{subscriptionStatus.isPro ? 'Unlimited invoices' : `${subscriptionStatus.remainingInvoices} of ${subscriptionStatus.invoiceLimit} free invoices remaining this month`}</Text>
+          <Text style={styles.description}>{subscriptionStatus.isPro ? 'Unlimited quotes and invoices' : `${subscriptionStatus.remainingInvoices} of ${subscriptionStatus.invoiceLimit} free documents remaining this month`}</Text>
           {subscriptionStatus.isPro && subscriptionStatus.status === 'cancelled' && subscriptionStatus.expiresAt && <Text style={styles.description}>Canceled. Pro access ends {new Date(subscriptionStatus.expiresAt).toLocaleString()}. You will not be charged again unless you resubscribe.</Text>}
-          {!subscriptionStatus.isPro && Platform.OS === 'android' && <>
-            <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: upgrading, busy: upgrading }} disabled={upgrading} style={styles.secondary} onPress={handleUpgrade}>
-              {upgrading ? <ActivityIndicator color={theme.colors.primary} /> : <Text style={styles.secondaryText}>Upgrade to Pro</Text>}
-            </TouchableOpacity>
+          {!subscriptionStatus.isPro && (Platform.OS === 'android' || Platform.OS === 'ios') && <>
+            {subscriptionProducts.map(product => <TouchableOpacity key={product.productId} accessibilityRole="button"
+              accessibilityState={{ disabled: upgrading, busy: upgrading }} disabled={upgrading} style={styles.secondary}
+              onPress={() => handleUpgrade(product.productId)}>
+              {upgrading ? <ActivityIndicator color={theme.colors.primary} /> : <Text style={styles.secondaryText}>
+                {product.period === 'year' ? 'Annual' : 'Monthly'} Pro — {product.displayPrice}/{product.period}
+              </Text>}
+            </TouchableOpacity>)}
+            {subscriptionProducts.length === 0 && <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={loadSubscriptionProducts}>
+              <Text style={styles.secondaryText}>Reload subscription options</Text>
+            </TouchableOpacity>}
             <Text style={styles.description}>The store shows the price and billing terms before you confirm.</Text>
           </>}
-          {!subscriptionStatus.isPro && Platform.OS === 'ios' &&
-            <Text style={styles.description}>This iPhone version includes the free plan. Pro is not available on iPhone.</Text>}
+          {Platform.OS === 'ios' && <>
+            <Text style={styles.description}>Subscriptions renew automatically unless canceled at least 24 hours before the current period ends. Payment is charged to your Apple Account. Manage or cancel in your App Store subscriptions.</Text>
+            <View style={styles.options}>
+              <TouchableOpacity accessibilityRole="link" onPress={() => setShowTerms(true)}><Text style={styles.secondaryText}>Terms of use</Text></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="link" onPress={() => setShowPrivacy(true)}><Text style={styles.secondaryText}>Privacy policy</Text></TouchableOpacity>
+            </View>
+          </>}
         </> : <>
           <Text style={styles.description}>Plan details are unavailable.</Text>
           {link('Reload plan details', loadSubscription)}

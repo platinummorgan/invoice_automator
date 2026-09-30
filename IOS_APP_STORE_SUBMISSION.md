@@ -1,8 +1,8 @@
 # Swift Invoice: first iOS App Store submission
 
-This repository is prepared for iOS version `1.3.0` with bundle identifier `com.invoiceautomator.app`. EAS Build manages the iOS certificate and provisioning profile remotely. The App Store Connect app record is configured as Apple ID `6788092733`. Audited replacement [EAS build 29](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/18738c76-d2db-4b1e-8af5-c1f6f7324980) finished successfully from commit `40e6abd5f52777b1ad5f6a9a0348e4ef2ab5c993`.
+This repository is prepared for iOS version `1.3.0` with bundle identifier `com.invoiceautomator.app`. EAS Build manages the iOS certificate and provisioning profile remotely. The App Store Connect app record is configured as Apple ID `6788092733`. Build 29 is a signed free-plan fallback; the release requirement now includes Apple monthly and annual Pro subscriptions, so build 30 must be built from the Apple billing source before review.
 
-Do not submit build 28 for review. It was uploaded successfully, but the September 29 release audit found that it allowed a Google Play entitlement to unlock iPhone features without offering the same tier through Apple In-App Purchase. The replacement candidate makes the iPhone app a self-contained free plan, removes references to other mobile platforms from the iOS interface, removes an unused Contacts permission, and targets iPhone only. Google Play entitlements remain Android-only until Apple billing is implemented.
+Do not submit builds 28 or 29 for review. Build 28 had a cross-platform entitlement compliance issue; build 29 removed iPhone purchases. Build 30 adds Apple In-App Purchase, verified monthly and annual Pro plans, restore/manage-subscription controls, dynamic localized prices, and App Store Server Notifications.
 
 ## 1. Pull and verify the release on the Mac
 
@@ -42,13 +42,13 @@ EAS already produced successful App Store builds 23, 24, 26, and 27 for this bun
 
 ## 3. Build the App Store binary
 
-Build 29 is the replacement candidate. Build again only if source changes. The build command is:
+Build 30 is the next release candidate. Create it after the App Store subscription products exist:
 
 ```bash
 npm run build:ios
 ```
 
-EAS read version `1.3.0` from `app.json` and assigned build number 29. The signed IPA is 15,346,142 bytes with SHA-256 `e519410bdb7966afc4d5df6ed22bd1f62cbd1e119003187aa1e38f6bea745d9e`. Inspection confirmed bundle `com.invoiceautomator.app`, iPhone-only device family, iOS 15.1 minimum, Xcode/iOS SDK 26, production signing, Sign in with Apple entitlement, and `ITSAppUsesNonExemptEncryption=false`.
+EAS will read version `1.3.0` from `app.json` and assign the next remote build number. The candidate must remain iPhone-only, production signed, and declare `ITSAppUsesNonExemptEncryption=false`.
 
 Install the build through TestFlight and test on a physical iPhone:
 
@@ -56,6 +56,8 @@ Install the build through TestFlight and test on a physical iPhone:
 - Create a quote with a before picture, email/share it, approve it, and convert it to an invoice.
 - Add a finished picture, mark the invoice paid, and generate/share the receipt.
 - Reach the free limit and confirm the app blocks another new document while existing documents remain accessible.
+- Purchase monthly Pro in Apple's sandbox, confirm unlimited access, sign out/in, and restore it.
+- Repeat with annual Pro and verify the App Store manage-subscription link.
 - Settings → Delete account must show two destructive confirmations. Use a disposable test account because the deletion is real.
 - Deny and later grant Contacts and Photos permission to confirm both paths remain usable.
 
@@ -63,17 +65,28 @@ Install the build through TestFlight and test on a physical iPhone:
 
 Build 28 was uploaded successfully through [EAS submission d2eb5ed2](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/submissions/d2eb5ed2-133c-4a84-9184-67a810d22e52), but is superseded and must not be selected for App Review.
 
-Build 29 upload is blocked on refreshing the stored App Store Connect API key. [Submission 1b021081](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/submissions/1b021081-3f82-4119-8cf8-e51e4ce715b4) and [retry 56d41264](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/submissions/56d41264-691e-4950-8092-dd57071fb7e4) both errored before a submission worker or log file was created. EAS Submit and Apple Developer APIs reported operational, making the nine-month-old stored key the likely cause.
+The stored App Store Connect API key is revoked or expired. Read-only authentication with local key `C6KCA9ASH8` returned `401 NOT_AUTHORIZED`. Create a fresh App Manager team key before configuring products or uploading build 30.
 
-Refresh it with `npx eas-cli@latest credentials --platform ios`, choose `production`, authenticate to Apple, then choose **App Store Connect: Manage your API Key** and replace the EAS Submit key. Alternatively, create an App Store Connect team API key with sufficient app-management access, download its `.p8` file once, and add that key through the same menu. Do not use a Sign in with Apple key; it is a different credential type. Then retry the replacement upload with:
+Refresh it with `npx eas-cli@latest credentials --platform ios`, choose `production`, authenticate to Apple, then choose **App Store Connect: Manage your API Key** and replace the EAS Submit key. Alternatively, create an App Store Connect team API key with App Manager access, download its `.p8` file once, and add that key through the same menu. Do not use a Sign in with Apple key; it is a different credential type. Then upload build 30 using its EAS build ID:
 
 ```bash
-npx eas-cli@latest submit --platform ios --profile production --id 18738c76-d2db-4b1e-8af5-c1f6f7324980
+npx eas-cli@latest submit --platform ios --profile production --id <build-30-eas-id>
 ```
 
-The submit profile targets App Store Connect app `6788092733`. Processing in App Store Connect can take several minutes. Attach only build 29 to the `1.3.0` version.
+The submit profile targets App Store Connect app `6788092733`. Attach only build 30 to the `1.3.0` version.
 
-## 5. App Store listing draft
+## 5. Apple Pro products
+
+Create one subscription group named **Swift Invoice Pro** with two same-level products:
+
+| Product ID | Duration | US price | Display name |
+| --- | --- | --- | --- |
+| `swift_invoice_pro_monthly` | 1 month | $3.99 | Monthly Pro |
+| `swift_invoice_pro_annual` | 1 year | $39.99 | Annual Pro |
+
+Use description **Unlimited quotes and invoices, job pictures, branded PDFs, receipts, and reports.** Make both available in all supported territories, keep Family Sharing off, and use Apple's equalized prices. Configure both production and sandbox Version 2 server notification URLs as `https://dfqjfbtizqrzqujkvalx.supabase.co/functions/v1/apple-store-notifications`.
+
+## 6. App Store listing draft
 
 Use these values as a starting point:
 
@@ -94,9 +107,9 @@ Suggested description:
 >
 > Keep customers, line items, taxes, payment instructions, branded PDFs, and document history together. Share professional quotes, invoices, and receipts from your iPhone using your preferred email or sharing app.
 >
-> The free plan includes two new documents each month. Existing documents remain available.
+> The free plan includes two new documents each month. Existing documents remain available. Optional Monthly Pro and Annual Pro subscriptions provide unlimited quotes and invoices.
 
-## 6. App privacy answers
+## 7. App privacy answers
 
 Answer App Store Connect's privacy questions from the app's actual behavior. Swift Invoice stores data in the user's account to provide app functionality; it does not use data for third-party advertising or tracking.
 
@@ -107,18 +120,18 @@ Answer App Store Connect's privacy questions from the app's actual behavior. Swi
 | User content | Quotes, invoices, receipts, notes, business logo, job pictures | Yes | App functionality |
 | Customer support | Feedback text, optional reply email, and rating | Yes | App functionality |
 | Identifiers | Supabase account/user ID | Yes | Authentication and app functionality |
-| Purchases | Account subscription status and Android purchase verification records | Yes | App functionality |
+| Purchases | Apple/Google transaction identifiers, product, status and expiration | Yes | App functionality |
 | Diagnostics | Declare only if the final binary or enabled service actually sends crash or diagnostic data | Depends on service | App functionality or analytics, as applicable |
 
 Select **No** for tracking unless a later release adds cross-app tracking or advertising SDKs. Recheck the generated iOS privacy report and every enabled third-party SDK before submitting.
 
-## 7. Screenshots and review information
+## 8. Screenshots and review information
 
 Capture screenshots from the final TestFlight build. The replacement is iPhone-only, so do not add an iPad screenshot set. Apple currently accepts one to ten screenshots and can scale the highest-resolution iPhone set to smaller sizes. Good screens are Menu, a quote with before pictures, the converted invoice, a paid receipt with finished pictures, and the document list. Use fictional customer and business data.
 
 Create a disposable reviewer account with sample business/customer data. Put its email and password in **App Review Information**, never in Git. Suggested review notes:
 
-> Swift Invoice creates quotes, converts approved quotes into invoices, and creates receipts after an invoice is marked paid. To test: sign in with the review account, open Menu → Quotes, create or open the sample quote, mark it approved, choose Convert to invoice, then mark the invoice paid to generate the receipt. Job pictures can be added from the document form. Account deletion is available at Settings → Delete account. The iPhone app has a free monthly allowance and offers no purchases or subscriptions. Payment links are instructions supplied by the business for collecting payment for physical goods or services outside the app; Swift Invoice does not process those customer payments.
+> Swift Invoice creates quotes, converts approved quotes into invoices, and creates receipts after an invoice is marked paid. To test: sign in with the review account, open Menu → Quotes, create or open the sample quote, mark it approved, choose Convert to invoice, then mark the invoice paid to generate the receipt. Job pictures can be added from the document form. Account deletion is available at Settings → Delete account. Settings → Your plan offers Monthly Pro and Annual Pro through Apple In-App Purchase and includes Restore purchases. Payment links are instructions supplied by the business for collecting payment for physical goods or services outside the app; Swift Invoice does not process those customer payments.
 
 If the reviewer account uses Sign in with Apple, deletion also displays Apple's manual authorization-removal path because the native identity-token flow does not retain an Apple refresh token for programmatic revocation. Prefer an email/password reviewer account so the reviewer can reuse it throughout review.
 

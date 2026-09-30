@@ -4,7 +4,7 @@ Mobile quoting and invoicing for small businesses, built with Expo, React Native
 
 ## Release status
 
-See [Release status](RELEASE_STATUS.md) for the current store versions, build provenance, database state, and remaining release checks. Version 1.3.0 is submitted to Google Play production and uploaded to App Store Connect for the first iOS release.
+See [Release status](RELEASE_STATUS.md) for the current store versions, build provenance, database state, and remaining release checks. Version 1.3.0 is in Google Play production; the first iOS release candidate is being prepared for App Store Connect.
 
 ## Features
 
@@ -15,7 +15,7 @@ See [Release status](RELEASE_STATUS.md) for the current store versions, build pr
 - Invoice branding, PDF preview/share, device email drafts and paid receipt emails.
 - Business-provided payment links and instructions; manual payment recording.
 - Explicit sent/paid/void status and reports.
-- Google Play Pro subscriptions verified by the backend, with restore and scheduled reconciliation.
+- Apple and Google Play Pro subscriptions verified by the backend, with restore and store lifecycle handling.
 - Password recovery and permanent in-app account deletion.
 
 Payment links take customers to the business's provider. Swift Invoice does not automatically confirm those external payments. Notification and reminder source files are not evidence of an enabled end-to-end feature.
@@ -30,7 +30,7 @@ Use Node 20 or newer. Install dependencies with `npm ci`, copy `.env.example` to
 - `npm run android`: native Android development build.
 - `npm run typecheck`: TypeScript validation.
 - `npm test`: app regression suite.
-- `npx deno test --node-modules-dir=none supabase/functions/_tests/googleBilling.test.ts`: server billing tests.
+- `npx deno test --node-modules-dir=auto supabase/functions/_tests/googleBilling.test.ts`: server billing tests.
 
 Native PDF and billing features require a native build. They cannot be validated solely in Expo Go.
 
@@ -48,7 +48,7 @@ Before the next Android store update, complete the [R8 and Android edge-to-edge 
 
 ## iOS App Store build
 
-Version 1.3.0 is configured for EAS-managed iOS credentials, Sign in with Apple, App Store Connect upload, and in-app account deletion. Follow [the first iOS submission guide](IOS_APP_STORE_SUBMISSION.md) on the Mac. The first iPhone release uses the free plan; Apple subscription billing is planned for a later release.
+Version 1.3.0 is configured for EAS-managed iOS credentials, Sign in with Apple, verified monthly/annual Apple subscriptions, App Store Connect upload, and in-app account deletion. Follow [the first iOS submission guide](IOS_APP_STORE_SUBMISSION.md) on the Mac.
 
 ## Public support pages
 

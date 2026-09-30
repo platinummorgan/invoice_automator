@@ -13,7 +13,7 @@
     "build:ios": "eas build --platform ios --profile production",
     "submit:android": "eas submit --platform android",
     "submit:ios": "eas submit --platform ios --profile production",
-    "test": "node tests/invoiceValues.test.cjs && node tests/recovery-and-sent.test.cjs && node tests/google-entitlement.test.cjs && node tests/subscription-status.test.cjs && node tests/invoice-payment-links.test.cjs"
+    "test": "node tests/invoiceValues.test.cjs && node tests/recovery-and-sent.test.cjs && node tests/google-entitlement.test.cjs && node tests/apple-entitlement.test.cjs && node tests/subscription-status.test.cjs && node tests/invoice-payment-links.test.cjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
@@ -42,7 +42,7 @@
     "react-native-gesture-handler": "~2.28.0",
     "react-native-iap": "^14.7.11",
     "react-native-pdf": "^7.0.3",
-    "react-native-safe-area-context": "^5.6.2",
+    "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1"
   },

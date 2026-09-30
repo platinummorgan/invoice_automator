@@ -6,6 +6,13 @@ verify_jwt = false
 [functions.reconcile-google-purchases]
 verify_jwt = false
 
+[functions.verify-apple-purchase]
+verify_jwt = false
+
+# Apple authenticates these requests with a signed App Store Server Notification.
+[functions.apple-store-notifications]
+verify_jwt = false
+
 # Existing deployed endpoints; record gateway settings without redeploying.
 [functions.stripe-webhook]
 verify_jwt = false

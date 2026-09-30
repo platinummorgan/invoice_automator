@@ -6,6 +6,10 @@ type Purchase = {
   productId?: string;
   purchaseToken?: string;
   transactionId?: string;
+  appAccountToken?: string | null;
+  originalTransactionIdentifierIOS?: string | null;
+  expirationDateIOS?: number | null;
+  environmentIOS?: string | null;
 };
 
 const SUBSCRIPTION_SKUS = {
@@ -14,6 +18,13 @@ const SUBSCRIPTION_SKUS = {
 } as const;
 
 const SUBSCRIPTION_PRODUCT_IDS = Object.values(SUBSCRIPTION_SKUS);
+export type SubscriptionProductId = typeof SUBSCRIPTION_PRODUCT_IDS[number];
+
+export type SubscriptionProduct = {
+  productId: SubscriptionProductId;
+  displayPrice: string;
+  period: 'month' | 'year';
+};
 
 const FREE_TIER_LIMIT = 2;
 
@@ -108,14 +119,11 @@ const isProfilePaid = (profile: any) => isPaidTier(profile.subscription_tier) &&
     Date.parse(profile.subscription_ends_at || '') > Date.now()
   ));
 
-// Google Play entitlements are Android-only until the same Pro tier is offered
-// through Apple In-App Purchase. This keeps the iOS release self-contained and
-// compliant with App Review's multiplatform-services rule.
 const hasPaidAccessOnThisPlatform = (profile: any) =>
-  Platform.OS === 'android' && isProfilePaid(profile);
+  (Platform.OS === 'android' || Platform.OS === 'ios') && isProfilePaid(profile);
 
 const getInvoiceLimitOnThisPlatform = (profile: any) =>
-  Platform.OS === 'ios' ? FREE_TIER_LIMIT : getProfileInvoiceLimit(profile);
+  hasPaidAccessOnThisPlatform(profile) ? getProfileInvoiceLimit(profile) : FREE_TIER_LIMIT;
 
 const billingListeners = new Set<(error?: string) => void>();
 const notifyBilling = (error?: string) => billingListeners.forEach(listener => listener(error));
@@ -132,7 +140,7 @@ const getCurrentProfile = async (userId: string) => {
     return data;
   };
   const profile = await read();
-  if (Platform.OS === 'android' && profile && !isProfilePaid(profile) && getIapModule()) {
+  if ((Platform.OS === 'android' || Platform.OS === 'ios') && profile && !isProfilePaid(profile) && getIapModule()) {
     await subscriptionService.syncSubscriptionStatus();
     return read();
   }
@@ -145,12 +153,12 @@ export const subscriptionService = {
     return () => { billingListeners.delete(listener); };
   },
   isIapAvailable() {
-    return Platform.OS === 'android' && !!getIapModule();
+    return (Platform.OS === 'android' || Platform.OS === 'ios') && !!getIapModule();
   },
 
   // Initialize IAP (call this on app start)
   async initialize() {
-    if (Platform.OS !== 'android') {
+    if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
       return { purchaseUpdateSubscription: null, purchaseErrorSubscription: null };
     }
 
@@ -185,7 +193,7 @@ export const subscriptionService = {
           try {
             if (await subscriptionService.restorePurchases()) return;
           } catch { /* Show a restore-specific message below. */ }
-          notifyBilling('Google Play already owns this subscription, but access could not be refreshed. Use Restore purchases in Settings to try again.');
+          notifyBilling(`${Platform.OS === 'ios' ? 'Apple' : 'Google Play'} already owns this subscription, but access could not be refreshed. Use Restore purchases in Settings to try again.`);
           return;
         }
         if (error?.code !== 'user-cancelled' && error?.code !== 'E_USER_CANCELLED') notifyBilling('The purchase did not finish. Please try again.');
@@ -233,9 +241,7 @@ export const subscriptionService = {
       if (invoiceCount >= invoiceLimit) {
         return {
           allowed: false,
-          reason: Platform.OS === 'android'
-            ? `You've reached your free tier limit of ${invoiceLimit} invoices this month. Upgrade to Pro for unlimited invoices.`
-            : `You've reached your free tier limit of ${invoiceLimit} documents this month. New documents become available when your monthly allowance resets.`,
+          reason: `You've reached your free tier limit of ${invoiceLimit} documents this month. Upgrade to Pro for unlimited documents.`,
         };
       }
 
@@ -304,11 +310,11 @@ export const subscriptionService = {
       const paid = hasPaidAccessOnThisPlatform(profile);
 
       return {
-        tier: Platform.OS === 'ios' ? 'free' : profile.subscription_tier || 'free',
-        status: Platform.OS === 'ios' ? 'free' : profile.subscription_status || 'free',
+        tier: profile.subscription_tier || 'free',
+        status: profile.subscription_status || 'free',
         invoiceCount,
         invoiceLimit,
-        expiresAt: Platform.OS === 'ios' ? null : getProfileSubscriptionEndsAt(profile),
+        expiresAt: getProfileSubscriptionEndsAt(profile),
         isPro: paid,
         remainingInvoices: paid ? 999999 : Math.max(0, invoiceLimit - invoiceCount),
       };
@@ -320,19 +326,45 @@ export const subscriptionService = {
     }
   },
 
-  // Upgrade to Pro (Google Play Billing integration)
-  async upgradeToPro() {
+  async getSubscriptionProducts(): Promise<SubscriptionProduct[]> {
+    if (Platform.OS !== 'android' && Platform.OS !== 'ios') return [];
+    const ready = await initIAP();
+    if (!ready) return [];
+    const skus = Platform.OS === 'ios'
+      ? [SUBSCRIPTION_SKUS.PRO_MONTHLY, SUBSCRIPTION_SKUS.PRO_ANNUAL]
+      : [SUBSCRIPTION_SKUS.PRO_MONTHLY];
+    const products = await requireIapModule().fetchProducts({ skus, type: 'subs' });
+    return (products || []).flatMap((product: any) => {
+      const productId = String(product.id || product.productId || '');
+      if (!SUBSCRIPTION_PRODUCT_IDS.includes(productId as SubscriptionProductId)) return [];
+      const displayPrice = String(product.displayPrice || product.localizedPrice || product.priceString || '').trim();
+      if (!displayPrice) return [];
+      return [{
+        productId: productId as SubscriptionProductId,
+        displayPrice,
+        period: productId === SUBSCRIPTION_SKUS.PRO_ANNUAL ? 'year' as const : 'month' as const,
+      }];
+    });
+  },
+
+  // Upgrade to Pro through the device's store. The server verifies ownership
+  // before the client finishes the transaction.
+  async upgradeToPro(productId: SubscriptionProductId = SUBSCRIPTION_SKUS.PRO_MONTHLY) {
     try {
-      if (Platform.OS !== 'android') throw new Error('Subscriptions are currently available through Google Play on Android.');
+      if (Platform.OS !== 'android' && Platform.OS !== 'ios') throw new Error('Subscriptions are unavailable on this device.');
+      if (!SUBSCRIPTION_PRODUCT_IDS.includes(productId)) throw new Error('That subscription option is unavailable.');
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Please sign in before upgrading.');
       if (await this.syncSubscriptionStatus()) {
         notifyBilling();
         return;
       }
-      const { data: readiness, error: readinessError } = await supabase.functions.invoke('verify-google-purchase', { body: { action: 'ready' } });
+      const verificationFunction = Platform.OS === 'ios' ? 'verify-apple-purchase' : 'verify-google-purchase';
+      const { data: readiness, error: readinessError } = await supabase.functions.invoke(verificationFunction, { body: { action: 'ready' } });
       if (readinessError || !readiness?.ready) throw new Error('Subscription verification is temporarily unavailable. Please try again later.');
-      const accountId = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, user.id);
+      const accountId = Platform.OS === 'android'
+        ? await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, user.id)
+        : null;
       const ready = await initIAP();
       if (!ready) {
         throw new Error(
@@ -342,13 +374,13 @@ export const subscriptionService = {
       const iap = requireIapModule();
 
       const subscriptions = await iap.fetchProducts({
-        skus: [SUBSCRIPTION_SKUS.PRO_MONTHLY],
+        skus: [productId],
         type: 'subs',
       });
 
       if (!subscriptions || subscriptions.length === 0) {
         throw new Error(
-          'Subscription product not found. Please ensure swift_invoice_pro_monthly is configured in Google Play Console.'
+          `Subscription product not found. Please ensure ${productId} is configured in the ${Platform.OS === 'ios' ? 'App Store' : 'Google Play'} console.`
         );
       }
 
@@ -356,7 +388,7 @@ export const subscriptionService = {
       const offers = product.subscriptionOfferDetailsAndroid || product.subscriptionOfferDetails || product.subscriptionOffers || [];
       const offer = offers.find((item: any) => !item.offerId && (item.offerToken || item.offerTokenAndroid)) || offers.find((item: any) => item.offerToken || item.offerTokenAndroid);
       const offerToken = offer?.offerToken || offer?.offerTokenAndroid;
-      if (!offerToken) throw new Error('No eligible subscription offer is available for this Google Play account.');
+      if (Platform.OS === 'android' && !offerToken) throw new Error('No eligible subscription offer is available for this Google Play account.');
 
       await iap.requestPurchase({
         type: 'subs',
@@ -364,14 +396,15 @@ export const subscriptionService = {
           Platform.OS === 'android'
             ? {
                 android: {
-                  skus: [SUBSCRIPTION_SKUS.PRO_MONTHLY],
-                  obfuscatedAccountId: accountId,
-                  subscriptionOffers: [{ sku: SUBSCRIPTION_SKUS.PRO_MONTHLY, offerToken }],
+                  skus: [productId],
+                  obfuscatedAccountId: accountId!,
+                  subscriptionOffers: [{ sku: productId, offerToken }],
                 },
               }
             : {
-                ios: {
-                  sku: SUBSCRIPTION_SKUS.PRO_MONTHLY,
+                apple: {
+                  sku: productId,
+                  appAccountToken: user.id,
                 },
               },
       });
@@ -382,11 +415,15 @@ export const subscriptionService = {
     }
   },
 
-  // The server owns entitlement writes and expiry; the device only supplies a Play token.
+  // The server owns entitlement writes and expiry. Store tokens are never trusted
+  // until the corresponding server verifier validates their signature/ownership.
   async verifyPurchase(purchase: Purchase) {
-    if (Platform.OS !== 'android' || !purchase.purchaseToken) throw new Error('A Google Play purchase token is required.');
-    const { data, error } = await supabase.functions.invoke('verify-google-purchase', {
-      body: { purchaseToken: purchase.purchaseToken },
+    if (!purchase.purchaseToken) throw new Error('A store purchase token is required.');
+    const verificationFunction = Platform.OS === 'ios' ? 'verify-apple-purchase' : 'verify-google-purchase';
+    const { data, error } = await supabase.functions.invoke(verificationFunction, {
+      body: Platform.OS === 'ios'
+        ? { signedTransaction: purchase.purchaseToken }
+        : { purchaseToken: purchase.purchaseToken },
     });
     if (error || !data?.verified) throw new Error(data?.error || 'Your purchase could not be verified. Please try restoring it again.');
     return !!data.isPro;
@@ -395,9 +432,7 @@ export const subscriptionService = {
   // Restore purchases (for users who already purchased)
   async restorePurchases() {
     try {
-      if (Platform.OS !== 'android') {
-        throw new Error('Purchase restoration is currently available through Google Play on Android.');
-      }
+      if (Platform.OS !== 'android' && Platform.OS !== 'ios') throw new Error('Purchase restoration is unavailable on this device.');
 
       const active = await this.syncSubscriptionStatus();
       notifyBilling();
@@ -408,16 +443,16 @@ export const subscriptionService = {
     }
   },
 
-  // Check subscription status from Google Play
+  // Check subscription status from the current platform store.
   async syncSubscriptionStatus() {
-    if (Platform.OS !== 'android') return false;
+    if (Platform.OS !== 'android' && Platform.OS !== 'ios') return false;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Please sign in to restore purchases.');
     const pending = pendingSyncs.get(user.id);
     if (pending) return pending;
     const sync = (async () => {
       const ready = await initIAP();
-      if (!ready) throw new Error('Google Play is unavailable. Please try again.');
+      if (!ready) throw new Error(`${Platform.OS === 'ios' ? 'The App Store' : 'Google Play'} is unavailable. Please try again.`);
       const purchases = await requireIapModule().getAvailablePurchases();
       let active = false;
       let failure: unknown;
