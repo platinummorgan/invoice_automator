@@ -7,7 +7,7 @@ Verified September 30, 2026. This document is the authoritative summary; older r
 | Surface | Status |
 | --- | --- |
 | Google Play production | 1.3.0, version code 23, Pro renewal hotfix committed and production track `completed` (API verified); store propagation may lag |
-| iOS App Store candidate | 1.3.0 build 30 required for Apple monthly/annual Pro; code and verifier are ready, with App Store products, upload credentials, and TestFlight validation remaining |
+| iOS App Store candidate | 1.3.0 build 30 finished with Apple monthly/annual Pro; App Store products, upload credentials, and TestFlight validation remain |
 | Android release artifact | 1.3.0 (23), signed EAS production AAB uploaded to Google Play |
 | Google Play internal testing | 1.3.0 (23), completed release status (API verified); renewal hotfix tested on the connected Android 16 phone using an AAB-derived APK |
 | Workflow test APK | 1.2.2 (20), EAS build finished and installed on the connected device; not uploaded to Play |
@@ -100,7 +100,9 @@ Version 1.3.0 adds the iOS native configuration, Sign in with Apple, browser-bas
 
 [EAS iOS build 28](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/7d92d41f-cd6a-4e39-8a2b-15b94fdb8e1e) finished successfully from source commit `b861072f2344cf03d208bc2936fcb2c357a79c1b`. It was uploaded but is superseded and must not be submitted for review. The September 29 audit found an out-of-sync dependency lock and an App Review risk: the iPhone app honored Google Play Pro entitlements without offering the same tier through Apple In-App Purchase. Build 29 temporarily isolated iPhone to the free plan; build 30 replaces that temporary policy with equivalent Apple subscriptions.
 
-[EAS iOS build 29](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/18738c76-d2db-4b1e-8af5-c1f6f7324980) finished successfully from audited commit `40e6abd5f52777b1ad5f6a9a0348e4ef2ab5c993`. It is now superseded because the owner requires Premium to be available at first release. Build 30 will contain the Apple billing implementation.
+[EAS iOS build 29](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/18738c76-d2db-4b1e-8af5-c1f6f7324980) finished successfully from audited commit `40e6abd5f52777b1ad5f6a9a0348e4ef2ab5c993`. It is now superseded because the owner requires Premium to be available at first release.
+
+[EAS iOS build 30](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/ff714008-f94b-49ba-9e6f-2d60e0e41453) finished successfully from source commit `0eef3e04e90157cf1f4e0651b7dcfbfd31df9a06`. The signed IPA is 15,353,311 bytes with SHA-256 `55940d05bb2c392cc1a2f1027462dc15ab2c350d18ffdb022b99c2c35a0d45ac`. Local artifact inspection confirmed bundle `com.invoiceautomator.app`, version `1.3.0`, build `30`, `ITSAppUsesNonExemptEncryption=false`, a production signature, and the Sign in with Apple entitlement. This is the only build that should be uploaded and selected for the first review.
 
 Two EAS Submit attempts for build 29 errored before a worker or log file was created. The stored App Store Connect API key must be replaced with a new App Manager team key. The credential failure itself did not invalidate build 29, but the new first-release Premium requirement does require build 30.
 
@@ -108,7 +110,7 @@ Two EAS Submit attempts for build 29 errored before a worker or log file was cre
 
 Production Supabase project `dfqjfbtizqrzqujkvalx` now has Apple authentication enabled for client ID `com.invoiceautomator.app`. Google authentication remains enabled, and the exact iOS OAuth callback `com.invoiceautomator.app://auth/callback` was added to the redirect allow list. Both settings were read back after the update.
 
-The remaining work is to create a fresh App Manager API key, configure the two Apple subscription products and Version 2 notification URL, build/upload build 30, validate sandbox purchase/restore through TestFlight, finish metadata, and submit it for review. See `IOS_APP_STORE_SUBMISSION.md`.
+The remaining work is to create a fresh App Manager API key, configure the two Apple subscription products and Version 2 notification URL, upload build 30, validate sandbox purchase/restore through TestFlight, finish metadata, and submit it for review. See `IOS_APP_STORE_SUBMISSION.md`.
 
 ## Branch scope
 

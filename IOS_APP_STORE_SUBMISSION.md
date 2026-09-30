@@ -1,6 +1,6 @@
 # Swift Invoice: first iOS App Store submission
 
-This repository is prepared for iOS version `1.3.0` with bundle identifier `com.invoiceautomator.app`. EAS Build manages the iOS certificate and provisioning profile remotely. The App Store Connect app record is configured as Apple ID `6788092733`. Build 29 is a signed free-plan fallback; the release requirement now includes Apple monthly and annual Pro subscriptions, so build 30 must be built from the Apple billing source before review.
+This repository is prepared for iOS version `1.3.0` with bundle identifier `com.invoiceautomator.app`. EAS Build manages the iOS certificate and provisioning profile remotely. The App Store Connect app record is configured as Apple ID `6788092733`. Build 29 is a signed free-plan fallback; build 30 is the finished release candidate with Apple monthly and annual Pro subscriptions.
 
 Do not submit builds 28 or 29 for review. Build 28 had a cross-platform entitlement compliance issue; build 29 removed iPhone purchases. Build 30 adds Apple In-App Purchase, verified monthly and annual Pro plans, restore/manage-subscription controls, dynamic localized prices, and App Store Server Notifications.
 
@@ -40,15 +40,17 @@ Use the same Apple Developer team for Apple Developer and App Store Connect.
 
 EAS already produced successful App Store builds 23, 24, 26, and 27 for this bundle identifier, so the remote distribution certificate and provisioning profile are working. If EAS ever prompts again, sign in with the Apple account that has access to the same team and allow EAS to manage credentials.
 
-## 3. Build the App Store binary
+## 3. App Store binary
 
-Build 30 is the next release candidate. Create it after the App Store subscription products exist:
+Build 30 finished successfully from commit `0eef3e04e90157cf1f4e0651b7dcfbfd31df9a06`:
 
-```bash
-npm run build:ios
-```
+- **EAS build ID:** `ff714008-f94b-49ba-9e6f-2d60e0e41453`
+- **Version/build:** `1.3.0 (30)`
+- **IPA size:** 15,353,311 bytes
+- **SHA-256:** `55940d05bb2c392cc1a2f1027462dc15ab2c350d18ffdb022b99c2c35a0d45ac`
+- **Build page:** https://expo.dev/accounts/platinummorgan/projects/invoice-automator/builds/ff714008-f94b-49ba-9e6f-2d60e0e41453
 
-EAS will read version `1.3.0` from `app.json` and assign the next remote build number. The candidate must remain iPhone-only, production signed, and declare `ITSAppUsesNonExemptEncryption=false`.
+Artifact inspection confirmed that the candidate is iPhone-only, production signed, uses bundle ID `com.invoiceautomator.app`, and declares `ITSAppUsesNonExemptEncryption=false`. Rebuild only if release source changes; EAS will then assign a build number higher than 30.
 
 Install the build through TestFlight and test on a physical iPhone:
 
@@ -70,7 +72,7 @@ The stored App Store Connect API key is revoked or expired. Read-only authentica
 Refresh it with `npx eas-cli@latest credentials --platform ios`, choose `production`, authenticate to Apple, then choose **App Store Connect: Manage your API Key** and replace the EAS Submit key. Alternatively, create an App Store Connect team API key with App Manager access, download its `.p8` file once, and add that key through the same menu. Do not use a Sign in with Apple key; it is a different credential type. Then upload build 30 using its EAS build ID:
 
 ```bash
-npx eas-cli@latest submit --platform ios --profile production --id <build-30-eas-id>
+npx eas-cli@latest submit --platform ios --profile production --id ff714008-f94b-49ba-9e6f-2d60e0e41453
 ```
 
 The submit profile targets App Store Connect app `6788092733`. Attach only build 30 to the `1.3.0` version.
