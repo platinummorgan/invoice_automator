@@ -1,13 +1,13 @@
 # Swift Invoice release status
 
-Verified September 30, 2026. This document is the authoritative summary; older review and working-note files are historical.
+Verified October 1, 2026. This document is the authoritative summary; older review and working-note files are historical.
 
 ## Versions
 
 | Surface | Status |
 | --- | --- |
 | Google Play production | 1.3.0, version code 23, Pro renewal hotfix committed and production track `completed` (API verified); store propagation may lag |
-| iOS App Store candidate | 1.3.0 build 30 finished with Apple monthly/annual Pro; App Store products, upload credentials, and TestFlight validation remain |
+| iOS App Store | 1.3.0 build 30 and the first Monthly Pro/Annual Pro products were submitted together; Apple status `WAITING_FOR_REVIEW` |
 | Android release artifact | 1.3.0 (23), signed EAS production AAB uploaded to Google Play |
 | Google Play internal testing | 1.3.0 (23), completed release status (API verified); renewal hotfix tested on the connected Android 16 phone using an AAB-derived APK |
 | Workflow test APK | 1.2.2 (20), EAS build finished and installed on the connected device; not uploaded to Play |
@@ -15,7 +15,7 @@ Verified September 30, 2026. This document is the authoritative summary; older r
 | Previous candidate build 18 | Finished, superseded; not the final artifact |
 | GitHub | Version 1.3.0 source and release records are on `main`; 1.2.2 release remains a historical draft |
 | Play Data safety | Owner reports submitted for review; approval not verified |
-| Supabase | Seven tracked migrations applied; Google billing publicly enabled with full profile guard; Apple verifier/notifications deployed and review account allowlisted; public Apple flag remains off pending sandbox acceptance |
+| Supabase | Seven tracked migrations applied; Google and Apple billing publicly enabled with server verification; Apple Version 2 production/sandbox notifications deployed |
 | Next Android update | R8 optimization and Expo/React Native edge-to-edge upgrade required; plan documented |
 
 Build 19 was released to internal testing and later completed on production. It was superseded by version 1.3.0 (22), then the September 29 billing hotfix 1.3.0 (23). The earlier build-18 upload was rolled back after a commit-parameter error.
@@ -36,6 +36,15 @@ Tester opt-in: https://play.google.com/apps/testing/com.invoiceautomator.app. Th
 - Clean install, app/server tests, TypeScript, 18 Expo Doctor checks and GitHub CI passed. The connected Android 16 phone passed purchase, restore, true expiry and foreground/document access across two actual Google test renewals.
 - The phone was updated in place from sideloaded build 21 using its existing signing key. Its test APK was derived from the release AAB; it is not Play-installed. JavaScript/native libraries matched Google's generated APK. See [hotfix evidence and limitations](ANDROID_BILLING_HOTFIX.md).
 - The native upgrade/R8 plan remains for the next feature release under the documented hotfix exception. Apple build 29 was not changed or rebuilt.
+
+## iOS App Store submission
+
+- Version 1.3.0, build 30, App Store Connect build ID `b4038ae2-2174-4f9c-8972-2fc4926427b9`.
+- EAS build `ff714008-f94b-49ba-9e6f-2d60e0e41453`, built from source commit `0eef3e04e90157cf1f4e0651b7dcfbfd31df9a06`.
+- App Store metadata, six 6.9-inch iPhone screenshots, review contact, reusable demo account, content rights, age rating and published App Privacy answers are complete.
+- Swift Invoice Pro group `22431275` includes Monthly Pro (`6818183917`, $3.99) and Annual Pro (`6818184147`, $39.99), with equalized pricing and availability in all 175 Apple territories.
+- Submission `5e3b5ccc-e195-43b2-a54b-8efa8768d638` contains the app version, subscription group and both subscriptions. Apple accepted it at `2026-10-01T14:46:51.153Z`; all are `WAITING_FOR_REVIEW`.
+- Release is configured for automatic publication after Apple approval.
 
 ## Previous Android production build 22
 

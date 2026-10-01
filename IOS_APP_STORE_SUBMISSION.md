@@ -65,28 +65,20 @@ Install the build through TestFlight and test on a physical iPhone:
 
 ## 4. Upload to App Store Connect
 
-Build 28 was uploaded successfully through [EAS submission d2eb5ed2](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/submissions/d2eb5ed2-133c-4a84-9184-67a810d22e52), but is superseded and must not be selected for App Review.
+Build 28 was uploaded successfully through [EAS submission d2eb5ed2](https://expo.dev/accounts/platinummorgan/projects/invoice-automator/submissions/d2eb5ed2-133c-4a84-9184-67a810d22e52), but is superseded and was not selected for App Review.
 
-The stored App Store Connect API key is revoked or expired. Read-only authentication with local key `C6KCA9ASH8` returned `401 NOT_AUTHORIZED`. Create a fresh App Manager team key before configuring products or uploading build 30.
-
-Refresh it with `npx eas-cli@latest credentials --platform ios`, choose `production`, authenticate to Apple, then choose **App Store Connect: Manage your API Key** and replace the EAS Submit key. Alternatively, create an App Store Connect team API key with App Manager access, download its `.p8` file once, and add that key through the same menu. Do not use a Sign in with Apple key; it is a different credential type. Then upload build 30 using its EAS build ID:
-
-```bash
-npx eas-cli@latest submit --platform ios --profile production --id ff714008-f94b-49ba-9e6f-2d60e0e41453
-```
-
-The submit profile targets App Store Connect app `6788092733`. Attach only build 30 to the `1.3.0` version.
+Build 30 (`b4038ae2-2174-4f9c-8972-2fc4926427b9`) was uploaded, processed as `VALID`, and attached to version 1.3.0. Its EAS build ID is `ff714008-f94b-49ba-9e6f-2d60e0e41453` and its source commit is `0eef3e04e90157cf1f4e0651b7dcfbfd31df9a06`.
 
 ## 5. Apple Pro products
 
-Create one subscription group named **Swift Invoice Pro** with two same-level products:
+The **Swift Invoice Pro** subscription group (`22431275`) contains two same-level products:
 
 | Product ID | Duration | US price | Display name |
 | --- | --- | --- | --- |
 | `swift_invoice_pro_monthly` | 1 month | $3.99 | Monthly Pro |
 | `swift_invoice_pro_annual` | 1 year | $39.99 | Annual Pro |
 
-Use description **Unlimited quotes and invoices, job pictures, branded PDFs, receipts, and reports.** Make both available in all supported territories, keep Family Sharing off, and use Apple's equalized prices. Configure both production and sandbox Version 2 server notification URLs as `https://dfqjfbtizqrzqujkvalx.supabase.co/functions/v1/apple-store-notifications`.
+Both products are localized, have private review screenshots and notes, use Apple's equalized prices, and are available in all 175 territories. Production and sandbox Version 2 server notification URLs are `https://dfqjfbtizqrzqujkvalx.supabase.co/functions/v1/apple-store-notifications`.
 
 ## 6. App Store listing draft
 
@@ -117,15 +109,19 @@ Answer App Store Connect's privacy questions from the app's actual behavior. Swi
 
 | Data category | Examples in Swift Invoice | Linked to user | Purpose |
 | --- | --- | --- | --- |
-| Contact info | Account name/email, business contact details, customer names/emails/phones | Yes | App functionality |
-| Financial info | Invoice amounts, payment records, and business-supplied payment instructions or links | Yes | App functionality |
-| User content | Quotes, invoices, receipts, notes, business logo, job pictures | Yes | App functionality |
+| Contact info | Name, email address, phone number and physical address for the account, business and customers | Yes | App functionality |
+| Financial info | Payment information/instructions, invoice amounts, payment records and income reports | Yes | App functionality |
+| User content | Email/message contents, photos/videos, quotes, invoices, receipts, notes and other document content | Yes | App functionality |
 | Customer support | Feedback text, optional reply email, and rating | Yes | App functionality |
 | Identifiers | Supabase account/user ID | Yes | Authentication and app functionality |
 | Purchases | Apple/Google transaction identifiers, product, status and expiration | Yes | App functionality |
 | Diagnostics | Declare only if the final binary or enabled service actually sends crash or diagnostic data | Depends on service | App functionality or analytics, as applicable |
 
-Select **No** for tracking unless a later release adds cross-app tracking or advertising SDKs. Recheck the generated iOS privacy report and every enabled third-party SDK before submitting.
+All 12 listed data types were published October 1, 2026 as linked to the user's identity, used only for app functionality, and not used for tracking. Recheck the generated iOS privacy report and every enabled third-party SDK before any later privacy-label update.
+
+## 9. Submitted review
+
+App version 1.3.0, the Swift Invoice Pro group, Monthly Pro and Annual Pro were submitted together as required for the first auto-renewable subscription release. App Store Connect submission `5e3b5ccc-e195-43b2-a54b-8efa8768d638` was accepted at `2026-10-01T14:46:51.153Z`; the app and both subscription products are `WAITING_FOR_REVIEW`. Automatic release is enabled.
 
 ## 8. Screenshots and review information
 

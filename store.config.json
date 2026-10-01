@@ -1,0 +1,75 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "version": "1.3.0",
+    "copyright": "2026 Michael Dorminey",
+    "release": {
+      "automaticRelease": true
+    },
+    "categories": [
+      "BUSINESS",
+      "PRODUCTIVITY"
+    ],
+    "info": {
+      "en-US": {
+        "title": "Swift Invoice by Platova",
+        "subtitle": "Quotes, Invoices & Receipts",
+        "description": "Swift Invoice helps small service businesses move from quote to payment without entering the same job twice. Create a quote, add before pictures, convert an approved quote into an invoice, attach finished pictures, and generate a receipt when payment is recorded.\n\nKeep customers, line items, taxes, payment instructions, branded PDFs, and document history together. Share professional quotes, invoices, and receipts from your iPhone using your preferred email or sharing app.\n\nThe free plan includes two new documents each month. Existing documents remain available. Optional Monthly Pro and Annual Pro subscriptions provide unlimited quotes and invoices.",
+        "keywords": [
+          "invoice",
+          "quote",
+          "receipt",
+          "contractor",
+          "small business",
+          "billing",
+          "payment",
+          "estimate",
+          "job photos"
+        ],
+        "promoText": "Create professional quotes, convert approved work into invoices, and send receipts from one simple workflow.",
+        "supportUrl": "https://platinummorgan.github.io/invoice_automator/support.html",
+        "privacyPolicyUrl": "https://platinummorgan.github.io/invoice_automator/privacy-policy.html",
+        "privacyChoicesUrl": "https://platinummorgan.github.io/invoice_automator/delete-account.html",
+        "screenshots": {
+          "APP_IPHONE_67": [
+            "store-assets/app-store/iphone-69/01-job-workflow.png",
+            "store-assets/app-store/iphone-69/02-invoices.png",
+            "store-assets/app-store/iphone-69/03-quote-detail.png",
+            "store-assets/app-store/iphone-69/04-quote-preview.png",
+            "store-assets/app-store/iphone-69/05-paid-receipt.png",
+            "store-assets/app-store/iphone-69/06-reports.png"
+          ]
+        }
+      }
+    },
+    "advisory": {
+      "ageRatingOverride": "NONE",
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gambling": false,
+      "gamblingSimulated": "NONE",
+      "horrorOrFearThemes": "NONE",
+      "kidsAgeBand": null,
+      "koreaAgeRatingOverride": "NONE",
+      "lootBox": false,
+      "matureOrSuggestiveThemes": "NONE",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "unrestrictedWebAccess": false,
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "advertising": false,
+      "ageAssurance": false,
+      "ageRatingOverrideV2": "NONE",
+      "developerAgeRatingInfoUrl": null,
+      "gunsOrOtherWeapons": "NONE",
+      "healthOrWellnessTopics": false,
+      "messagingAndChat": false,
+      "parentalControls": false,
+      "userGeneratedContent": false
+    }
+  }
+}

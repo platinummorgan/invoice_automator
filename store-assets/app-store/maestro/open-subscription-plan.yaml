@@ -1,0 +1,14 @@
+appId: com.invoiceautomator.app
+---
+- launchApp
+- tapOn: "Settings, tab, 4 of 4"
+- scrollUntilVisible:
+    element:
+      text: "Your plan"
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    centerElement: true
+- extendedWaitUntil:
+    visible: "Your plan"
+    timeout: 10000
