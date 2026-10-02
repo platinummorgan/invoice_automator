@@ -121,7 +121,7 @@ All 12 listed data types were published October 1, 2026 as linked to the user's 
 
 ## 9. Submitted review
 
-App version 1.3.0, the Swift Invoice Pro group, Monthly Pro and Annual Pro were submitted together as required for the first auto-renewable subscription release. App Store Connect submission `5e3b5ccc-e195-43b2-a54b-8efa8768d638` was accepted at `2026-10-01T14:46:51.153Z`; the app and both subscription products are `WAITING_FOR_REVIEW`. Automatic release is enabled.
+App version 1.3.0, the Swift Invoice Pro group, Monthly Pro and Annual Pro were submitted together as required for the first auto-renewable subscription release. App Store Connect submission `5e3b5ccc-e195-43b2-a54b-8efa8768d638` was accepted at `2026-10-01T14:46:51.153Z`. Apple rejected the app version on October 2 under Guideline 3.1.2 because its public description did not contain a functional Terms of Use link. The standard Apple EULA link was added to the description and the same four-item submission was resubmitted; all items are again `WAITING_FOR_REVIEW`. Automatic release remains enabled.
 
 ## 8. Screenshots and review information
 

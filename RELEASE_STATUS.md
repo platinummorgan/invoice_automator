@@ -43,7 +43,7 @@ Tester opt-in: https://play.google.com/apps/testing/com.invoiceautomator.app. Th
 - EAS build `ff714008-f94b-49ba-9e6f-2d60e0e41453`, built from source commit `0eef3e04e90157cf1f4e0651b7dcfbfd31df9a06`.
 - App Store metadata, six 6.9-inch iPhone screenshots, review contact, reusable demo account, content rights, age rating and published App Privacy answers are complete.
 - Swift Invoice Pro group `22431275` includes Monthly Pro (`6818183917`, $3.99) and Annual Pro (`6818184147`, $39.99), with equalized pricing and availability in all 175 Apple territories.
-- Submission `5e3b5ccc-e195-43b2-a54b-8efa8768d638` contains the app version, subscription group and both subscriptions. Apple accepted it at `2026-10-01T14:46:51.153Z`; all are `WAITING_FOR_REVIEW`.
+- Submission `5e3b5ccc-e195-43b2-a54b-8efa8768d638` contains the app version, subscription group and both subscriptions. Apple rejected the app version on October 2 for a missing public EULA link under Guideline 3.1.2. The standard Apple EULA link was added to the App Store description and the same four-item submission was resubmitted; all are again `WAITING_FOR_REVIEW`.
 - Release is configured for automatic publication after Apple approval.
 
 ## Previous Android production build 22
